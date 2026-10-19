@@ -46,6 +46,23 @@ been compiled or run on a board by the author; hardware cases below are ☐.
 | W16 | Six wrong passwords | Lockout message, then 15 min wait | ☐ |
 | W17 | `water/dispense` start while tank ≥ 99 % | 422 "already full" | ☐ |
 
+## 2b. Scheduled feeding (server, curl as staff)
+
+| # | Case | Expected | Result |
+|---|---|---|---|
+| F1 | Save `auto_feed:true` + two times out of order | 200; stored sorted (06:00, 17:30) | ✔ |
+| F2 | Device `status` after saving | `auto_feed`, `feed_schedule`, `feed_max_duration` match | ✔ |
+| F3 | Dashboard feeder object | `auto` and `schedule` shown | ✔ |
+| F4 | Same time twice | 422 "listed twice" | ✔ |
+| F5 | Time `25:00` | 422 | ✔ |
+| F6 | Run time above the maximum | 422 | ✔ |
+| F7 | Nine entries | 422 "at most 8" | ✔ |
+| F8 | Lower the maximum below an existing entry | 422 "Shorten it first" | ✔ |
+| F9 | Save water settings only | Feeding schedule unchanged | ✔ |
+| F10 | Device posts the "clock not set" alert via `sync` | 200; alert created | ✔ |
+| F11 | `init-db.php` on a database from before this feature | Adds `feed_schedule`; second run changes nothing | ✔ |
+| F12 | Schedule editor in the browser: add/remove rows, save, reload | Rows persist | ☐ |
+
 ## 3. Database
 
 | # | Case | Result |
@@ -84,7 +101,18 @@ been compiled or run on a board by the author; hardware cases below are ☐.
 13. Wrong API key in `config.h`: device never goes Online; serial shows HTTP 401.
 14. Server stopped while the pump is filling: pump still stops at FULL (allow a few
     seconds of delay while the HTTP request times out).
-15. Power-cycle both relays' loads: neither motor starts at boot.
+15. **Scheduled feeding**: set a time 2 minutes ahead (3 s). The feeder runs once at
+    that minute, the history shows *automatic* with note "Scheduled feed", and no
+    second run happens.
+16. Reset the board right after a scheduled feed (inside the 2-minute window): it
+    does **not** feed again.
+17. Unplug the router, reboot the board (no internet): scheduled feeds are skipped,
+    the serial monitor says the clock is not set, and a dashboard alert appears
+    once Wi-Fi returns.
+18. Start a manual feed a few seconds before a slot: the slot is skipped or runs
+    after it, never overlapping.
+19. Dashboard Emergency stop: scheduled feeding switches off (Settings shows Off).
+20. Power-cycle both relays' loads: neither motor starts at boot.
 
 ## 6. Known limitations
 

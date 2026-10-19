@@ -73,7 +73,7 @@ board is active-HIGH: set the constant to `false`.
    and the feeder relay is IN2.
 
 Serial commands: `auto on|off`, `pump on|off|<sec>`, `feed [sec]`, `motor on|off`,
-`status`, `test`, `stop`, `help`.
+`sched on|off|show`, `status`, `test`, `stop`, `help`.
 
 ---
 
@@ -111,7 +111,31 @@ dashboard's *Maximum pump/motor run time* settings can only lower these limits.
 
 ---
 
-## 5. Heat warning
+## 5. Scheduled feeding
+
+Feeding times (up to 8 a day, each with its own run seconds) are set on the web
+**Settings** page and sent to the board, which saves them in its flash memory and
+runs them from its own clock. The clock comes from NTP over Wi-Fi
+(`NTP_SERVER`, UTC+8 by default in `config.h`).
+
+* A scheduled feed fires once, up to `SCHEDULE_GRACE_MIN` (2) minutes after its
+  time, so a slow network request cannot make it miss. The time of the last feed
+  is stored in flash, so a reboot inside that window does **not** feed twice.
+* Feeds are capped by `MOTOR_MAX_SEC` and the dashboard's maximum run time.
+* **If the clock is not set** (no internet since boot) the feed is skipped, never
+  guessed, and after 3 minutes a warning alert is raised on the dashboard.
+* If the feeder is already running (for example a manual feed) when a slot
+  starts, the slot waits inside its grace window and is skipped if the feeder is
+  still busy.
+* A freshly flashed board has scheduled feeding **off** until it first reaches the
+  server. After a reboot it uses the schedule saved in flash, so feeding does not
+  depend on the network being up at boot, only on the clock.
+* `stop` (serial) and the dashboard's emergency stop switch scheduled feeding
+  off; turn it back on with `sched on` or in Settings.
+
+---
+
+## 6. Heat warning
 
 `TEMP_WARN` (32 °C) and `TEMP_DANGER` (35 °C) set the serial warnings; the server
 raises the matching alerts at the same thresholds (`CLIMATE_WARN_C` /
@@ -119,7 +143,7 @@ raises the matching alerts at the same thresholds (`CLIMATE_WARN_C` /
 
 ---
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 | Symptom | Check |
 |---|---|
@@ -130,4 +154,5 @@ raises the matching alerts at the same thresholds (`CLIMATE_WARN_C` /
 | Pump never stops | `WATER_FULL_VALUE` too high for your strip; the safety timer will stop it |
 | Pump never starts | `WATER_LOW_VALUE` too low; or auto refill was turned off after a timeout (`auto on`) |
 | ESP32 resets when a motor starts | Supply too small or no flyback diode; power the ESP32 from its own buck output |
+| Scheduled feed did not run | `sched show` (is it ON, are the times there?); Settings → *Scheduled feeding* on; clock set (a dashboard alert says if not); feeder not busy; a *stop* since boot turned it off |
 | Dashboard shows Offline | See INSTALLATION.md section 10 |

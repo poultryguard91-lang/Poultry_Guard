@@ -147,7 +147,8 @@ CREATE TABLE `system_settings` (
     `device_id`              INT UNSIGNED  NOT NULL,
     -- feed (timed feeder)
     `feed_max_duration`      INT UNSIGNED  NOT NULL DEFAULT 30       COMMENT 'seconds, feeder motor safety cut-off',
-    `auto_feed`              TINYINT(1)    NOT NULL DEFAULT 1,
+    `auto_feed`              TINYINT(1)    NOT NULL DEFAULT 1       COMMENT 'scheduled feeding on/off',
+    `feed_schedule`          TEXT          DEFAULT NULL             COMMENT 'JSON [{"time":"06:00","seconds":3}]',
     -- water
     `water_capacity`         DECIMAL(10,2) NOT NULL DEFAULT 100.00   COMMENT 'cm, usable tank depth',
     `water_capacity_liters`  DECIMAL(10,2) NOT NULL DEFAULT 200.00   COMMENT 'litres at 100% level',
@@ -308,11 +309,11 @@ INSERT INTO `devices`
 
 -- --- Default automation settings (one row per device) ------------------
 INSERT INTO `system_settings`
-(`device_id`,`feed_max_duration`,`auto_feed`,`water_capacity`,`water_capacity_liters`,`sensor_offset_cm`,
+(`device_id`,`feed_max_duration`,`auto_feed`,`feed_schedule`,`water_capacity`,`water_capacity_liters`,`sensor_offset_cm`,
  `water_threshold`,`water_target`,`water_max_duration`,`auto_water`,
  `water_low_percent`,`water_critical_percent`,`offline_timeout`,`reading_interval`,`updated_by`) VALUES
-(1,30,1,100.00,200.00,0.00,30.00,90.00,60,1,30.00,15.00,300,30,1),
-(2,30,1,100.00,250.00,0.00,35.00,92.00,60,1,30.00,15.00,300,30,1);
+(1,30,1,'[{"time":"06:00","seconds":5},{"time":"12:00","seconds":5},{"time":"17:00","seconds":5}]',100.00,200.00,0.00,30.00,90.00,60,1,30.00,15.00,300,30,1),
+(2,30,1,'[{"time":"07:00","seconds":4},{"time":"16:00","seconds":4}]',100.00,250.00,0.00,35.00,92.00,60,1,30.00,15.00,300,30,1);
 
 -- =====================================================================
 --  SAMPLE DATA : 14 days of sensor history, generated with a recursive

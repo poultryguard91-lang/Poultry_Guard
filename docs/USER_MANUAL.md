@@ -23,7 +23,7 @@ Updates by itself every few seconds.
 
 * **Tiles** — temperature, water level, controller online/offline, unread alerts.
 * **Feeder** — whether the feeder is running, when it last ran and for how long,
-  and how many runs today.
+  whether scheduled feeding is on, the feeding times, and how many runs today.
 * **Water monitoring** — level in cm and %, litres, the *Refill* threshold marker,
   last refill, consumed today.
 * **House climate** — temperature, humidity and heat status. *Normal* below 32 °C,
@@ -51,6 +51,29 @@ started, start/end level, duration, outcome, who).
 The command is queued and picked up by the controller within a few seconds. The
 *Command history* table shows it move from *Queued* → *Delivered* → *Executed*.
 The buttons are disabled while the controller is offline (Stop is still sent).
+
+## Scheduled feeding (Farm Staff)
+
+Open **Settings → Feed settings**.
+
+1. Turn **Scheduled feeding** on.
+2. Press **+ Add time**, pick the time (for example 06:00) and how many seconds the
+   feeder runs. You can add up to 8 times a day.
+3. Press **Save feed settings**.
+
+The controller stores the schedule and feeds at those times on its own, even if the
+internet is down. Feeds that were scheduled appear in the feed history as
+*automatic*. Manual feeding keeps working alongside the schedule.
+
+Good to know:
+
+* Each run is limited by *Maximum motor run time*. Lower that limit and you must
+  shorten any longer feeding first.
+* Changes reach the controller within about a minute of saving.
+* If the controller has no correct clock (it needs internet after power-up to set
+  it), it **skips** scheduled feeds and shows a warning alert instead of feeding at
+  the wrong time. Feed manually until the alert clears.
+* **Emergency stop** switches scheduled feeding off. Turn it on again in Settings.
 
 ## Automation → Water Control (Farm Staff)
 
@@ -80,12 +103,14 @@ status, type or date. *Mark read* acknowledges; *Resolve* closes. Typical alerts
 | Low / critical water | Level under the alert percentage | Check the supply; the pump may already be refilling |
 | Heat warning / danger | Over 32 °C / 35 °C | Fans, shade, cool water |
 | Device offline | No contact for longer than the offline timeout | Check power and Wi-Fi |
+| Clock not set | Scheduled feeding is on but the controller cannot tell the time | Check Wi-Fi/internet; feed manually meanwhile |
 | Dispensing timeout | The pump or feeder hit its safety time limit | Check supply, hose, hopper |
 | Sensor failure | Invalid water reading | Check the sensor wiring |
 
 ## Settings
 
-* **Feed settings** (Staff) — maximum feeder run time.
+* **Feed settings** (Staff) — maximum feeder run time, scheduled feeding on/off and
+  the feeding times.
 * **Water settings** (Staff) — tank depth and volume, refill start/stop levels,
   maximum pump run time, automatic watering.
 * **Alert & notification settings** (Owner) — low/critical water percentages,

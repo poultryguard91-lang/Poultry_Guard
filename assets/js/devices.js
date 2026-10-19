@@ -87,7 +87,8 @@
                 row('Firmware', PG.escapeHtml(d.firmware_version || 'Not reported')) +
                 row('IP address', '<span class="pg-mono">' + PG.escapeHtml(d.ip_address || '--') + '</span>') +
                 row('Wi-Fi signal', PG.escapeHtml(wifi)) +
-                row('Automatic watering', d.auto_water ? 'On' : 'Off') +
+                row('Automation', (d.auto_feed ? 'Scheduled feeding on' : 'Scheduled feeding off') + ' · ' +
+                                  (d.auto_water ? 'Water on' : 'Water off')) +
                 row('Offline after', d.offline_timeout + ' s without contact') +
                 row('Last 24 h', d.activity.climate_readings + ' climate / ' +
                     d.activity.water_readings + ' water readings, ' +

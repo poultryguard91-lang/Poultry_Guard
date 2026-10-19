@@ -698,3 +698,74 @@ function water_consumption(int $deviceId, string $from, string $to, string $peri
     }
     return $rows;
 }
+
+// =====================================================================
+// Feeding schedule
+// =====================================================================
+
+/** Maximum number of feeding times per device. */
+const FEED_SCHEDULE_MAX = 8;
+
+/**
+ * Validate a feeding schedule from user input.
+ *
+ * Each entry is {"time": "HH:MM", "seconds": n}. Times must be unique and the
+ * run time must not exceed the device's maximum feeder run time. The result is
+ * sorted by time and normalised, ready to store as JSON.
+ *
+ * @return list<array{time:string, seconds:int}>
+ * @throws ValidationException
+ */
+function parse_feed_schedule(mixed $input, int $maxSeconds): array
+{
+    if (is_string($input) && $input !== '') {
+        $input = json_decode($input, true);
+    }
+    if ($input === null || $input === '' || $input === []) {
+        return [];
+    }
+    if (!is_array($input)) {
+        throw new ValidationException('The feeding schedule is not valid.');
+    }
+    if (count($input) > FEED_SCHEDULE_MAX) {
+        throw new ValidationException('A schedule can hold at most ' . FEED_SCHEDULE_MAX . ' feeding times.');
+    }
+
+    $out = [];
+    foreach ($input as $i => $row) {
+        $n = (int)$i + 1;
+        if (!is_array($row)) {
+            throw new ValidationException("Feeding time #{$n} is not valid.");
+        }
+        $time = trim((string)($row['time'] ?? ''));
+        if (!preg_match('/^([01]\d|2[0-3]):([0-5]\d)$/', $time)) {
+            throw new ValidationException("Feeding time #{$n} must be a time like 06:30.");
+        }
+        $sec = $row['seconds'] ?? null;
+        if (!is_numeric($sec) || (int)$sec != $sec || (int)$sec < 1 || (int)$sec > $maxSeconds) {
+            throw new ValidationException("Feeding time {$time}: run time must be a whole number from 1 to {$maxSeconds} seconds.");
+        }
+        if (isset($out[$time])) {
+            throw new ValidationException("The time {$time} is listed twice.");
+        }
+        $out[$time] = ['time' => $time, 'seconds' => (int)$sec];
+    }
+    ksort($out);
+    return array_values($out);
+}
+
+/** Decode the stored schedule JSON; never throws. */
+function feed_schedule_decode(?string $json): array
+{
+    if ($json === null || $json === '') {
+        return [];
+    }
+    $rows = json_decode($json, true);
+    if (!is_array($rows)) {
+        return [];
+    }
+    return array_values(array_filter(array_map(static function ($r) {
+        return is_array($r) && isset($r['time'], $r['seconds'])
+            ? ['time' => (string)$r['time'], 'seconds' => (int)$r['seconds']] : null;
+    }, $rows)));
+}

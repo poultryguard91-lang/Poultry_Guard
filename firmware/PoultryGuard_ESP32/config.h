@@ -62,7 +62,13 @@
 #define SYNC_BATCH_SIZE      20        /* server accepts at most 250        */
 
 /* ---------------------------------------------------------------------
- *  5. Time (gives buffered records real timestamps). UTC+8 = Philippines.
+ *  5. Scheduled feeding
+ * ------------------------------------------------------------------- */
+#define MAX_FEED_SLOTS       8         /* feeding times per day (match the server) */
+#define SCHEDULE_GRACE_MIN   2         /* a slot may start up to this many minutes late */
+
+/* ---------------------------------------------------------------------
+ *  6. Time (gives buffered records real timestamps). UTC+8 = Philippines.
  * ------------------------------------------------------------------- */
 #define NTP_SERVER           "pool.ntp.org"
 #define NTP_GMT_OFFSET_SEC   (8 * 3600)

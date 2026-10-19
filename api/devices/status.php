@@ -65,6 +65,7 @@ api_run(function (array $in): ApiResult {
             'water_sensor'     => $online ? $d['water_sensor_status'] : 'unknown',
             'motor_status'     => $online ? $d['motor_status']    : 'unknown',
             'solenoid_status'  => $online ? $d['solenoid_status'] : 'unknown',
+            'auto_feed'        => (bool)$settings['auto_feed'],
             'auto_water'       => (bool)$settings['auto_water'],
             'offline_timeout'  => (int)$settings['offline_timeout'],
             'temperature'      => $climate ? (float)$climate['temperature_c'] : null,

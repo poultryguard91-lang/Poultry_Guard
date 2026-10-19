@@ -36,6 +36,8 @@ api_run(function (array $in): ApiResult {
     $lastFeed = fetch_last_dispensing('feed_dispensing', $deviceId);
 
     $feed = [
+        'auto'                  => (bool)$settings['auto_feed'],
+        'schedule'              => feed_schedule_decode($settings['feed_schedule'] ?? null),
         'running'               => $online && $device['motor_status'] === 'running',
         'max_duration'          => (int)$settings['feed_max_duration'],
         'last_run'              => $lastFeed['timestamp'] ?? null,

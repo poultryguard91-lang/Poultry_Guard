@@ -108,6 +108,14 @@ require __DIR__ . '/../includes/header.php';
                         <div class="pg-muted">Safety limit per run</div>
                         <div class="fw-semibold" id="feedMaxDuration">--</div>
                     </div>
+                    <div class="col-6">
+                        <div class="pg-muted">Scheduled feeding</div>
+                        <div class="fw-semibold" id="feedAuto">--</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="pg-muted">Feeding times</div>
+                        <div class="fw-semibold" id="feedSchedule">--</div>
+                    </div>
                 </div>
 
                 <div class="pg-divider"></div>

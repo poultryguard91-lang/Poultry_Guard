@@ -12,6 +12,11 @@
  *             "ArduinoJson" v7 by Benoit Blanchon
  *  Serial Monitor: 115200 baud, line ending "Newline"
  *
+ *  SCHEDULED FEEDING: feeding times (HH:MM + run seconds) are set on the web
+ *  Settings page, stored in this board's flash and run from its own clock
+ *  (NTP). If the clock is not set the scheduled feed is SKIPPED and an alert
+ *  is raised. Serial: sched on | sched off | sched show
+ *
  *  WEB SYNC (see config.h): readings, pump/feeder runs and alerts go to the
  *  PoultryGuard dashboard; dashboard buttons (feed, refill, stop) are polled
  *  every few seconds. All control logic stays LOCAL, so the pump and feeder
@@ -37,6 +42,7 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <time.h>
+#include <Preferences.h>
 #endif
 
 /* ---------- Which water level sensor do you have? ----------
@@ -118,6 +124,14 @@ unsigned long floatOkSince  = 0;
 bool   serverOk     = false;              // last request to the server worked
 int    sampleCount  = 0, eventCount = 0;  // offline queue fill levels
 long   settingsVersion = 0;
+
+/* ---------- Scheduled feeding ---------- */
+struct FeedSlot { uint16_t minuteOfDay; uint16_t sec; };
+FeedSlot slots[MAX_FEED_SLOTS];
+int    slotCount        = 0;
+bool   scheduledFeeding = false;      // loaded from flash / the dashboard
+unsigned long lastFireStamp = 0;      // absolute minute of the last scheduled feed (stored in flash)
+void persistFeedFlags();              // defined in the sync section
 
 /* ================= RELAYS ================= */
 void writeRelay(uint8_t pin, bool on) {
@@ -263,6 +277,8 @@ void printStatus() {
   Serial.print(" | Water: "); Serial.print(waterLevel);
   Serial.print(" ("); Serial.print(waterValue); Serial.print(")");
   Serial.print(autoRefill ? " [AUTO]" : " [MANUAL]");
+  Serial.print(scheduledFeeding ? " [SCHED " : " [no sched ");
+  Serial.print(slotCount); Serial.print("]");
   Serial.print(" | ");
   printChannel(pump);
   Serial.print(" | ");
@@ -280,6 +296,7 @@ void printHelp() {
   Serial.println("  auto on | auto off");
   Serial.println("  pump on | pump off | pump <sec>   (switches water to MANUAL)");
   Serial.println("  feed | feed <sec> | motor on | motor off");
+  Serial.println("  sched on | sched off | sched show   (scheduled feeding)");
   Serial.println("  status | test | stop | help");
 }
 
@@ -312,6 +329,19 @@ void runCommand(String cmd) {
   else if (cmd == "motor on")  turnOn(motor, MOTOR_MAX_SEC, true);
   else if (cmd == "motor off") turnOff(motor, "manual");
 
+  else if (cmd == "sched on")  { scheduledFeeding = true;  persistFeedFlags(); Serial.println(">> SCHEDULED FEEDING ON"); }
+  else if (cmd == "sched off") { scheduledFeeding = false; persistFeedFlags(); Serial.println(">> SCHEDULED FEEDING OFF"); }
+  else if (cmd == "sched show") {
+    Serial.print("Scheduled feeding: "); Serial.println(scheduledFeeding ? "ON" : "OFF");
+    for (int i = 0; i < slotCount; i++) {
+      Serial.print("  "); Serial.print(slots[i].minuteOfDay / 60); Serial.print(":");
+      if (slots[i].minuteOfDay % 60 < 10) Serial.print("0");
+      Serial.print(slots[i].minuteOfDay % 60); Serial.print("  for ");
+      Serial.print(slots[i].sec); Serial.println(" s");
+    }
+    if (slotCount == 0) Serial.println("  (no feeding times set)");
+  }
+
   else if (cmd == "test") {
     autoRefill = false;
     turnOff(pump, "test");
@@ -330,9 +360,11 @@ void runCommand(String cmd) {
     autoRefill = false;
     writeRelay(PIN_PUMP, false);      // both relays off before anything slow
     writeRelay(PIN_MOTOR, false);
+    scheduledFeeding = false;
+    persistFeedFlags();
     turnOff(pump, "STOP");
     turnOff(motor, "STOP");
-    Serial.println(">> EMERGENCY STOP: everything OFF, auto refill OFF ('auto on' to resume)");
+    Serial.println(">> EMERGENCY STOP: everything OFF, auto refill and scheduled feeding OFF ('auto on' / 'sched on' to resume)");
   }
   else {
     Serial.print("Unknown command: "); Serial.println(cmd);
@@ -468,7 +500,8 @@ void reportFinished(Channel& ch, const char* why) {
          ",\"ending_percentage\":" + String(waterPercent) +
          ",\"target_percentage\":100";
   } else {
-    j += ",\"notes\":\"Timed feed, " + String((ms + 500) / 1000) + " s\"";
+    j += String(",\"notes\":\"") + (ch.manual ? "Timed feed, " : "Scheduled feed, ") +
+         String((ms + 500) / 1000) + " s\"";
   }
   String ts = nowTs();
   if (ts.length()) j += ",\"timestamp\":\"" + ts + "\"";
@@ -498,6 +531,107 @@ void sendEvents() {
   }
 }
 
+/* ---- scheduled feeding ---- */
+Preferences prefs;
+
+void loadSlots(JsonArray arr) {
+  slotCount = 0;
+  for (JsonObject o : arr) {
+    if (slotCount >= MAX_FEED_SLOTS) break;
+    const char* t = o["time"] | "";
+    int h = 0, m = 0;
+    int sec = o["seconds"] | 0;
+    if (sscanf(t, "%d:%d", &h, &m) != 2 || h < 0 || h > 23 || m < 0 || m > 59 || sec < 1) continue;
+    slots[slotCount].minuteOfDay = h * 60 + m;
+    slots[slotCount].sec = sec;
+    slotCount++;
+  }
+}
+
+/* Write the schedule and on/off flag to flash so a reboot keeps them. */
+void persistFeedFlags() {
+  prefs.putBool("autofeed", scheduledFeeding);
+  JsonDocument d;
+  JsonArray a = d.to<JsonArray>();
+  for (int i = 0; i < slotCount; i++) {
+    JsonObject o = a.add<JsonObject>();
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%02d:%02d", slots[i].minuteOfDay / 60, slots[i].minuteOfDay % 60);
+    o["time"] = buf;
+    o["seconds"] = slots[i].sec;
+  }
+  String j;
+  serializeJson(d, j);
+  prefs.putString("sched", j);
+}
+
+void loadFeedFlags() {
+  prefs.begin("pg", false);
+  scheduledFeeding = prefs.getBool("autofeed", false);   // off until the dashboard says otherwise
+  lastFireStamp    = prefs.getULong("lastfire", 0);
+  String j = prefs.getString("sched", "[]");
+  JsonDocument d;
+  if (!deserializeJson(d, j)) loadSlots(d.as<JsonArray>());
+}
+
+/* Runs the feeder at the scheduled times, using the board's own clock.
+ * A slot fires once, within SCHEDULE_GRACE_MIN minutes after its time (so a
+ * slow network request can't make it miss), and never again after a reboot
+ * (the last fire is stored in flash). With no valid clock it does nothing
+ * and raises an alert instead of guessing. */
+String pendingAlert = "";
+
+void scheduleLoop() {
+  static unsigned long lastCheck = 0;
+  static bool clockWarned = false;
+  if (millis() - lastCheck < 1000) return;
+  lastCheck = millis();
+  if (!scheduledFeeding || slotCount == 0) return;
+
+  time_t now = time(nullptr);
+  if (now < 1700000000) {                        // clock not set
+    if (!clockWarned && millis() > 180000UL) {   // give NTP 3 minutes after boot
+      clockWarned = true;
+      pendingAlert = "Scheduled feeding is on but the controller clock is not set, so scheduled feeds are being skipped.";
+      Serial.println("!! Clock not set - scheduled feeds are SKIPPED until the time syncs.");
+    }
+    return;
+  }
+  clockWarned = false;
+
+  struct tm t;
+  localtime_r(&now, &t);
+  int minOfDay = t.tm_hour * 60 + t.tm_min;
+  unsigned long nowAbs = (unsigned long)(now / 60);
+
+  for (int i = 0; i < slotCount; i++) {
+    int late = minOfDay - (int)slots[i].minuteOfDay;     // minutes since the slot time today
+    if (late < 0 || late >= SCHEDULE_GRACE_MIN) continue;
+    unsigned long stamp = nowAbs - (unsigned long)late;  // absolute minute of the slot
+    if (stamp <= lastFireStamp) continue;                // already fired
+    if (motor.on) continue;                              // busy: retry inside the grace window
+    lastFireStamp = stamp;
+    prefs.putULong("lastfire", stamp);
+    Serial.print(">> SCHEDULED FEED "); Serial.print(slots[i].minuteOfDay / 60);
+    Serial.print(":"); if (slots[i].minuteOfDay % 60 < 10) Serial.print("0");
+    Serial.println(slots[i].minuteOfDay % 60);
+    turnOn(motor, slots[i].sec);                         // not manual -> logged as automatic
+    break;
+  }
+}
+
+void sendPendingAlert() {
+  static unsigned long lastTry = 0;
+  if (pendingAlert.length() == 0 || !wifiUp()) return;
+  if (millis() - lastTry < 30000UL) return;
+  lastTry = millis();
+  String r;
+  String body = "{\"esp32_uid\":\"" DEVICE_UID "\",\"alerts\":[{\"alert_type\":\"system_error\","
+                "\"severity\":\"WARNING\",\"message\":\"" + pendingAlert + "\"}]}";
+  int code = postJson("/api/esp32/sync.php", body, r);
+  if ((code >= 200 && code < 300) || (code >= 400 && code < 500)) pendingAlert = "";
+}
+
 /* Settings the server pushes. Safety timers and calibration stay local. */
 void applySettings(JsonObject s) {
   if (s.isNull()) return;
@@ -508,6 +642,15 @@ void applySettings(JsonObject s) {
   long wm = s["water_max_duration"] | 0L;
   if (fm > 0) motor.maxSec = min((long)MOTOR_MAX_SEC, fm);
   if (wm > 0) pump.maxSec  = min((long)PUMP_MAX_SEC, wm);
+  if (!s["auto_feed"].isNull()) {
+    scheduledFeeding = s["auto_feed"].as<bool>();
+    Serial.print(">> Dashboard setting: scheduled feeding "); Serial.println(scheduledFeeding ? "ON" : "OFF");
+  }
+  if (s["feed_schedule"].is<JsonArray>()) {
+    loadSlots(s["feed_schedule"].as<JsonArray>());
+    Serial.print(">> Feeding schedule updated: "); Serial.print(slotCount); Serial.println(" time(s)");
+  }
+  persistFeedFlags();
   if (!s["auto_water"].isNull()) {
     autoRefill = s["auto_water"].as<bool>();
     pumpStoppedAt = 0;
@@ -618,6 +761,7 @@ void syncLoop() {
   }
 
   sendEvents();
+  sendPendingAlert();
 
   /* Dashboard commands (lightweight heartbeat) - keeps the stop buttons responsive */
   unsigned long pollEvery = serverOk ? COMMAND_POLL_INTERVAL : 30000UL;
@@ -649,6 +793,7 @@ void syncLoop() {
 
 #else  /* sync disabled */
 void reportFinished(Channel&, const char*) {}
+void persistFeedFlags() {}
 #endif
 
 /* ================= SETUP & LOOP ================= */
@@ -677,6 +822,9 @@ void setup() {
   printHelp();
 
 #if ENABLE_SYNC
+  loadFeedFlags();
+  Serial.print("Scheduled feeding: "); Serial.print(scheduledFeeding ? "ON" : "OFF");
+  Serial.print(", "); Serial.print(slotCount); Serial.println(" time(s) loaded from flash");
   syncSetup();
 #endif
 }
@@ -698,6 +846,7 @@ void loop() {
   updateChannel(motor);
 
 #if ENABLE_SYNC
+  scheduleLoop();
   syncLoop();
   updateChannel(pump);      // a slow request must not delay the safety timers
   updateChannel(motor);

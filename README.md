@@ -94,8 +94,10 @@ time limit.
 raises a warning alert at 32 °C and a critical alert at 35 °C.
 
 **Timed feeder.** There is no feed scale: the feeder motor runs for a set number
-of seconds (3 by default, or whatever the operator enters), never longer than the
-configured safety limit.
+of seconds, never longer than the configured safety limit. It can be started
+manually from the dashboard, or **on a schedule**: up to 8 daily feeding times are
+stored on the ESP32 and run from its own clock, so feeding continues without the
+network. If the clock is not set, scheduled feeds are skipped and an alert is raised.
 
 **Water consumption** is a mass balance, not a sum of what was refilled:
 

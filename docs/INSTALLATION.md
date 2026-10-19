@@ -184,13 +184,14 @@ GPIO 4, water sensor on GPIO 34).
 | Water level strip / float → % | Water monitoring card, charts, low-water alerts |
 | DHT11 temperature & humidity | *House climate* card; heat warning ≥ 32 °C, danger ≥ 35 °C raise alerts |
 | Pump runs (auto/manual) | Water refill history; dashboard **Refill** / **Stop** buttons |
-| Feeder runs (timed) | Feed history; dashboard **Dispense** sets a run time (`duration_sec`) |
+| Feeder runs (timed or scheduled) | Feed history; dashboard **Run feeder** sets a run time (`duration_sec`); Settings holds the daily feeding times |
 | Wi-Fi/server down | Pump and feeder keep running locally; readings and runs are buffered in RAM (60 readings / 10 runs) and uploaded on reconnect |
 
 There is no load cell, so there is no feed-weight monitoring or FCR report, and
 feeding is timed rather than weight-targeted. Existing installs get the new `climate_readings`
 table automatically from `deploy/init-db.php`; on XAMPP, import the
 `climate_readings` block at the end of the schema in `database/poultryguard.sql`
+and run `ALTER TABLE system_settings ADD COLUMN feed_schedule TEXT NULL AFTER auto_feed;`
 (or re-import the whole file on a fresh install).
 
 ### 8.4 Flash

@@ -77,6 +77,33 @@ function setting_field(
                     setting_field('feed_max_duration', 'Maximum motor run time', 'seconds',
                         'Safety cut-off: the feeder motor never runs longer than this in one run.', $CAN_THRESHOLDS, '1', '1', '3600');
                     ?>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="auto_feed"
+                                   <?= $CAN_THRESHOLDS ? '' : 'disabled' ?>>
+                            <label class="form-check-label fw-semibold" for="auto_feed">
+                                Scheduled feeding
+                            </label>
+                            <div class="form-text">
+                                When off, the feeder only runs when you start it manually.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pg-divider"></div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="form-label small fw-semibold mb-0">Feeding times</label>
+                    <?php if ($CAN_THRESHOLDS): ?>
+                        <button type="button" class="btn btn-sm btn-light" id="addSlotBtn">+ Add time</button>
+                    <?php endif; ?>
+                </div>
+                <div id="scheduleRows"></div>
+                <div class="form-text">
+                    Each time the feeder runs once for the seconds shown, up to 8 times a day
+                    (house clock, Asia/Manila). The controller keeps the schedule in its own
+                    memory, so feeding continues if the network drops. If its clock has not
+                    been set (no internet since boot) it skips scheduled feeds and raises an alert.
                 </div>
 
                 <?php if ($CAN_THRESHOLDS): ?>

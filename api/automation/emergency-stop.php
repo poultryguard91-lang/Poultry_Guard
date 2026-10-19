@@ -67,6 +67,7 @@ api_run(function (array $in): ApiResult {
 
     return api_ok([
         'command_id' => $commandId,
+        'auto_feed'  => false,
         'auto_water' => false,
-    ], 'Emergency stop sent. Automatic watering has been switched off — re-enable them in Settings when it is safe.');
+    ], 'Emergency stop sent. Scheduled feeding and automatic watering have been switched off — re-enable them in Settings when it is safe.');
 });

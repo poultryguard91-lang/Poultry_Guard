@@ -90,6 +90,8 @@ function device_config_payload(int $deviceId, ?array $settings = null): array
 
     return [
         'feed_max_duration'  => (int)$settings['feed_max_duration'],
+        'auto_feed'          => (bool)$settings['auto_feed'],
+        'feed_schedule'      => feed_schedule_decode($settings['feed_schedule'] ?? null),
         'water_capacity'     => (float)$settings['water_capacity'],
         'sensor_offset_cm'   => (float)$settings['sensor_offset_cm'],
         'water_threshold'    => (float)$settings['water_threshold'],

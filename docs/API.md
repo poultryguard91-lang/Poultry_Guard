@@ -69,8 +69,9 @@ Requires CSRF. Ends the session.
 
 * `device` — online state, firmware, IP, Wi-Fi RSSI, water sensor / feeder /
   pump status
-* `feed` — `running`, `max_duration`, `last_run`, `last_run_ago`,
-  `last_run_seconds`, `last_run_method`
+* `feed` — `running`, `max_duration`, `auto` (scheduled feeding on), `schedule`
+  (`[{time, seconds}]`), `last_run`, `last_run_ago`, `last_run_seconds`,
+  `last_run_method`
 * `water` — `level`, `percentage`, `liters`, `status` (NORMAL/LOW/CRITICAL),
   thresholds, last refill
 * `climate` — `temperature`, `humidity`, `heat_level` (NORMAL/WARNING/DANGER),
@@ -134,11 +135,14 @@ Send any fields of one or both groups:
 
 | Group (permission) | Fields |
 |---|---|
-| thresholds (`settings.thresholds`) | `feed_max_duration`, `water_capacity`, `water_capacity_liters`, `water_threshold`, `water_target`, `water_max_duration`, `auto_water` |
+| thresholds (`settings.thresholds`) | `feed_max_duration`, `auto_feed` (scheduled feeding), `feed_schedule`, `water_capacity`, `water_capacity_liters`, `water_threshold`, `water_target`, `water_max_duration`, `auto_water` |
 | alerts (`settings.alerts`) | `water_low_percent`, `water_critical_percent`, `offline_timeout`, `reading_interval`, `notify_in_app`, `notify_email` |
 
 Cross-field rules are enforced (threshold < target ≤ depth; critical < low;
-offline timeout ≥ 2 × reading interval). A request touching a group the caller
+offline timeout ≥ 2 × reading interval). `feed_schedule` is a list of `{"time": "HH:MM", "seconds": n}`: at most 8 entries,
+unique times, each `seconds` from 1 to `feed_max_duration` (the list replaces the
+stored one; omit it to keep the current schedule; lowering `feed_max_duration`
+below an existing entry is refused). A request touching a group the caller
 does not hold is refused as a whole. The device picks changes up through
 `settings_version`.
 
@@ -170,7 +174,8 @@ Telemetry (every 30 s).
   "water_sensor_status": "ok", "motor_status": "idle", "solenoid_status": "running"
 }
 ```
-`solenoid_status` is the water pump. Returns `stored` (water level and %,
+`solenoid_status` is the water pump. The `settings` object also carries `auto_feed`, `feed_schedule`, `feed_max_duration`,
+`water_*` limits and `auto_water`. Returns `stored` (water level and %,
 temperature, humidity, heat level), `warnings`, `server_time`, `settings`
 (including `settings_version`) and `pending_commands`. Invalid values are
 discarded with a warning rather than failing the request; a temperature ≥ 32 °C /
@@ -189,7 +194,8 @@ A finished run.
 { "esp32_uid": "…", "type": "feed", "status": "completed",
   "dispensing_method": "manual", "duration_ms": 3000, "user_id": 3, "notes": "Timed feed, 3 s" }
 ```
-`status`: `completed`, `failed`, `aborted`, `timeout`. `dispensing_method`:
+A scheduled feed is reported as `dispensing_method: "automatic"` with notes
+"Scheduled feed, N s". `status`: `completed`, `failed`, `aborted`, `timeout`. `dispensing_method`:
 `automatic`, `manual`, `offline`. Optional `timestamp` (`Y-m-d H:i:s`, accepted if
 within the last 30 days and not more than 5 min in the future, else server time).
 `timeout` and `failed` raise alerts.
@@ -207,7 +213,8 @@ Offline catch-up, at most 250 records, written in **one transaction**:
   "dispensing": [ { "type": "feed", "status": "completed", "duration_ms": 3000 } ],
   "alerts": [ { "alert_type": "info", "severity": "INFO", "message": "…" } ] }
 ```
-Returns per-type counts and any `rejected` records with the reason. Replayed
+The firmware also uses `alerts` to report that scheduled feeding is on but its
+clock is not set (`system_error`, WARNING). Returns per-type counts and any `rejected` records with the reason. Replayed
 readings are stored with `source = offline_sync`.
 
 ### `GET|POST /api/esp32/config.php`

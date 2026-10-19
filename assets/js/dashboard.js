@@ -83,6 +83,10 @@
         PG.setText('feedLastRun', feed.last_run ? feed.last_run_ago : 'Never');
         PG.setText('feedLastSeconds', feed.last_run_seconds === null ? '--' : feed.last_run_seconds + ' s');
         PG.setText('feedMaxDuration', feed.max_duration + ' s');
+        PG.setText('feedAuto', feed.auto ? 'On' : 'Off');
+        PG.setText('feedSchedule', feed.schedule.length
+            ? feed.schedule.map(function (s) { return s.time + ' (' + s.seconds + ' s)'; }).join(' · ')
+            : 'None set');
         PG.setText('feedToday', today.feed_runs + ' run(s), ' + today.feed_seconds + ' s');
 
         const pill = document.getElementById('feedStatusPill');

@@ -70,6 +70,8 @@ firmware applies the relevant values.
 | Column | Meaning |
 |---|---|
 | `feed_max_duration` | Feeder safety cut-off (s) |
+| `auto_feed` | Scheduled feeding on/off |
+| `feed_schedule` | JSON text, `[{"time":"06:00","seconds":5}, …]`, sorted, max 8, unique times, local (house) time |
 | `water_capacity`, `water_capacity_liters` | Tank depth (cm) and volume at full |
 | `water_threshold`, `water_target` | Refill starts below / ends at (cm) |
 | `water_max_duration` | Pump safety cut-off (s) |
@@ -81,8 +83,9 @@ firmware applies the relevant values.
 | `sensor_offset_cm` | Internal; used by the percentage→distance conversion (leave at 0) |
 | `updated_at` | Doubles as `settings_version` (its Unix time) |
 
-`auto_feed` and the old feed capacity/threshold/target/tolerance columns may still
-exist on older installs and are unused.
+The old feed capacity/threshold/target/tolerance columns may still exist on older
+installs and are unused. `feed_schedule` is added to existing databases by
+`deploy/init-db.php` (on XAMPP: `ALTER TABLE system_settings ADD COLUMN feed_schedule TEXT NULL AFTER auto_feed;`).
 
 ### `alerts`
 `alert_type` (`low_water`, `critical_water`, `sensor_failure`, `device_offline`,

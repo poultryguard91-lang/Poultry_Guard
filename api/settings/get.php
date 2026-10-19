@@ -36,6 +36,8 @@ api_run(function (array $in): ApiResult {
         ],
         'feed' => [
             'feed_max_duration' => (int)$settings['feed_max_duration'],
+            'auto_feed'         => (bool)$settings['auto_feed'],
+            'feed_schedule'     => feed_schedule_decode($settings['feed_schedule'] ?? null),
         ],
         'water' => [
             'water_capacity'        => (float)$settings['water_capacity'],

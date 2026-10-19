@@ -46,7 +46,11 @@ if ($pdo->query("SHOW TABLES LIKE 'users'")->fetch()) {
                 REFERENCES `devices` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
-    echo "[init-db] schema present, climate table ensured\n";
+    // Scheduled feeding (added after the first release).
+    if (!$pdo->query("SHOW COLUMNS FROM `system_settings` LIKE 'feed_schedule'")->fetch()) {
+        $pdo->exec("ALTER TABLE `system_settings` ADD COLUMN `feed_schedule` TEXT NULL DEFAULT NULL AFTER `auto_feed`");
+    }
+    echo "[init-db] schema present, climate table and feed schedule ensured\n";
     exit(0);
 }
 

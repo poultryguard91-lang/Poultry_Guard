@@ -21,7 +21,7 @@ api_require_method('POST');
 /** Fields that belong to each permission group. */
 const SETTING_GROUPS = [
     'thresholds' => [
-        'feed_max_duration',
+        'feed_max_duration', 'auto_feed', 'feed_schedule',
         'water_capacity', 'water_capacity_liters',
         'water_threshold', 'water_target', 'water_max_duration', 'auto_water',
     ],
@@ -72,6 +72,23 @@ api_run(function (array $in): ApiResult {
 
     if (isset($touched['thresholds'])) {
         $new['feed_max_duration'] = v_int($in['feed_max_duration']   ?? null, 'Maximum feeder run time', 1, 3600, (int)$current['feed_max_duration']);
+
+        $new['auto_feed'] = to_bool($in['auto_feed'] ?? $current['auto_feed']);
+        if (array_key_exists('feed_schedule', $in)) {
+            $new['feed_schedule'] = json_encode(
+                parse_feed_schedule($in['feed_schedule'], $new['feed_max_duration']),
+                JSON_UNESCAPED_SLASHES
+            );
+        } elseif (!empty($current['feed_schedule'])) {
+            // Shortening the maximum run time must not leave an invalid schedule behind.
+            foreach (feed_schedule_decode($current['feed_schedule']) as $slot) {
+                if ($slot['seconds'] > $new['feed_max_duration']) {
+                    throw new ValidationException(sprintf(
+                        'The %s feeding runs %d s, longer than the new maximum of %d s. Shorten it first.',
+                        $slot['time'], $slot['seconds'], $new['feed_max_duration']));
+                }
+            }
+        }
 
         $new['water_capacity']        = v_float($in['water_capacity']        ?? null, 'Maximum water capacity', 1, 400, (float)$current['water_capacity']);
         $new['water_capacity_liters'] = v_float($in['water_capacity_liters'] ?? null, 'Tank volume', 1, 100000, (float)$current['water_capacity_liters']);

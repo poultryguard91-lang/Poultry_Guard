@@ -21,7 +21,7 @@
         alerts: ['water_low_percent',
                  'water_critical_percent', 'offline_timeout', 'reading_interval']
     };
-    const SWITCHES = { feed: [], water: ['auto_water'], alerts: ['notify_in_app', 'notify_email'] };
+    const SWITCHES = { feed: ['auto_feed'], water: ['auto_water'], alerts: ['notify_in_app', 'notify_email'] };
 
     function set(id, value) {
         const el = document.getElementById(id);
@@ -47,13 +47,64 @@
     }
 
     // -----------------------------------------------------------------
+    // Feeding schedule editor
+    // -----------------------------------------------------------------
+    const MAX_SLOTS = 8;
+
+    function slotRow(time, seconds) {
+        const editable = !!perms.canThresholds;
+        const row = document.createElement('div');
+        row.className = 'row g-2 align-items-center mb-2 pg-slot';
+        row.innerHTML =
+            '<div class="col-5 col-md-4"><input type="time" class="form-control form-control-sm slot-time" ' +
+                'required ' + (editable ? '' : 'readonly') + '></div>' +
+            '<div class="col-5 col-md-4"><div class="input-group input-group-sm">' +
+                '<input type="number" class="form-control slot-sec" min="1" step="1" required ' +
+                (editable ? '' : 'readonly') + '><span class="input-group-text">seconds</span></div></div>' +
+            (editable ? '<div class="col-2"><button type="button" class="btn btn-sm btn-outline-danger slot-del" ' +
+                'aria-label="Remove this feeding time">&times;</button></div>' : '');
+        row.querySelector('.slot-time').value = time || '';
+        row.querySelector('.slot-sec').value = seconds || '';
+        const del = row.querySelector('.slot-del');
+        if (del) del.addEventListener('click', function () { row.remove(); refreshAddButton(); });
+        return row;
+    }
+
+    function refreshAddButton() {
+        const btn = document.getElementById('addSlotBtn');
+        if (btn) btn.disabled = document.querySelectorAll('.pg-slot').length >= MAX_SLOTS;
+        const box = document.getElementById('scheduleRows');
+        if (box && !box.children.length) {
+            box.innerHTML = '<div class="small pg-muted mb-2" id="noSlots">No feeding times set.</div>';
+        }
+    }
+
+    function renderSchedule(slots) {
+        const box = document.getElementById('scheduleRows');
+        if (!box) return;
+        box.innerHTML = '';
+        (slots || []).forEach(function (s) { box.appendChild(slotRow(s.time, s.seconds)); });
+        refreshAddButton();
+    }
+
+    function readSchedule() {
+        return Array.prototype.map.call(document.querySelectorAll('.pg-slot'), function (row) {
+            return {
+                time: row.querySelector('.slot-time').value,
+                seconds: parseInt(row.querySelector('.slot-sec').value, 10)
+            };
+        });
+    }
+
+    // -----------------------------------------------------------------
     // Load
     // -----------------------------------------------------------------
     async function load() {
         const data = await PG.api('api/settings/get.php', { params: { device_id: deviceId } });
 
         Object.keys(data.feed).forEach(function (k) {
-            if (typeof data.feed[k] === 'boolean') setSwitch(k, data.feed[k]);
+            if (k === 'feed_schedule') renderSchedule(data.feed[k]);
+            else if (typeof data.feed[k] === 'boolean') setSwitch(k, data.feed[k]);
             else set(k, data.feed[k]);
         });
         Object.keys(data.water).forEach(function (k) {
@@ -79,7 +130,21 @@
     // specific explanation. The server enforces them regardless.
     // -----------------------------------------------------------------
     function validateFeed() {
-        if (num('feed_max_duration') < 1) return 'Enter a run time of at least 1 second.';
+        const max = num('feed_max_duration');
+        if (!(max >= 1)) return 'Enter a run time of at least 1 second.';
+        const seen = {};
+        const slots = readSchedule();
+        for (let i = 0; i < slots.length; i++) {
+            const s = slots[i];
+            if (!s.time) return 'Feeding time #' + (i + 1) + ' needs a time.';
+            if (!(s.seconds >= 1)) return 'Feeding time ' + s.time + ' needs a run time of at least 1 second.';
+            if (s.seconds > max) {
+                return 'Feeding time ' + s.time + ' runs ' + s.seconds + ' s, longer than the ' +
+                       max + ' s maximum run time.';
+            }
+            if (seen[s.time]) return 'The time ' + s.time + ' is listed twice.';
+            seen[s.time] = true;
+        }
         return null;
     }
 
@@ -121,6 +186,7 @@
         const body = { device_id: deviceId };
         FIELDS[group].forEach(function (f) { body[f] = num(f); });
         SWITCHES[group].forEach(function (f) { body[f] = bool(f); });
+        if (group === 'feed') body.feed_schedule = readSchedule();
 
         const ok = await PG.confirm({
             title: 'Save settings',
@@ -153,6 +219,15 @@
         load().catch(function (e) { PG.toast(e.message, 'danger'); });
 
         if (perms.canThresholds) {
+            const addBtn = document.getElementById('addSlotBtn');
+            if (addBtn) {
+                addBtn.addEventListener('click', function () {
+                    const none = document.getElementById('noSlots');
+                    if (none) none.remove();
+                    document.getElementById('scheduleRows').appendChild(slotRow('08:00', 3));
+                    refreshAddButton();
+                });
+            }
             document.getElementById('feedForm').addEventListener('submit', function (e) {
                 e.preventDefault();
                 save('feed', 'feedError', 'feedSaveBtn', validateFeed,
