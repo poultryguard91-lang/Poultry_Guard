@@ -3,14 +3,14 @@
  * POST /api/esp32/sync.php
  *
  * Offline catch-up. While the network is down the ESP32 keeps feeding and
- * watering and buffers what happened in local flash. When connectivity comes
+ * watering and buffers readings in memory. When connectivity comes
  * back it replays that buffer here in one batch, with the original timestamps,
  * so nothing that happened during the outage is lost from the history.
  *
  * Body:
  *   {
  *     "esp32_uid": "...",
- *     "readings":   [ { "timestamp": "...", "feed_weight": 4250, "distance_cm": 32.5 } ],
+ *     "readings":   [ { "timestamp": "...", "water_percentage": 62, "temperature": 29.5, "humidity": 70 } ],
  *     "dispensing": [ { "type": "feed", "timestamp": "...", ... } ],
  *     "alerts":     [ { "alert_type": "...", "severity": "...", "message": "..." } ]
  *   }
@@ -49,23 +49,17 @@ api_run(function (array $in): ApiResult {
         );
     }
 
-    $capacity = (float)$settings['feed_capacity'];
     $depth    = (float)$settings['water_capacity'];
     $offset   = (float)$settings['sensor_offset_cm'];
 
-    $counts   = ['feed_readings' => 0, 'water_readings' => 0, 'dispensing' => 0, 'alerts' => 0];
+    $counts   = ['water_readings' => 0, 'climate_readings' => 0, 'dispensing' => 0, 'alerts' => 0];
     $rejected = [];
-    $lastFeedPct = null;
     $lastWaterPct = null;
 
     $pdo = db();
     $pdo->beginTransaction();
 
     try {
-        $feedStmt = $pdo->prepare(
-            'INSERT INTO feed_readings (device_id, feed_weight, feed_percentage, raw_value, source, `timestamp`)
-             VALUES (?, ?, ?, ?, ?, ?)'
-        );
         $waterStmt = $pdo->prepare(
             'INSERT INTO water_readings (device_id, water_level, water_percentage, distance_cm, source, `timestamp`)
              VALUES (?, ?, ?, ?, ?, ?)'
@@ -78,32 +72,25 @@ api_run(function (array $in): ApiResult {
             }
             $ts = reading_timestamp($r['timestamp'] ?? null);
 
-            // --- buffered feed sample ---
-            if (isset($r['feed_weight']) && is_numeric($r['feed_weight'])) {
-                $w = (float)$r['feed_weight'];
-                if ($w < 0 || $w > $capacity * 1.5) {
-                    $rejected[] = "readings[{$i}]: feed weight {$w} g out of range";
+            // --- buffered DHT11 sample ---
+            if (isset($r['temperature']) || isset($r['humidity'])) {
+                if (record_climate($deviceId, $r['temperature'] ?? null, $r['humidity'] ?? null, 'offline_sync', $ts, false) !== null) {
+                    $counts['climate_readings']++;
                 } else {
-                    $pct = feed_percentage($w, $capacity);
-                    $feedStmt->execute([
-                        $deviceId, round($w, 2), $pct,
-                        isset($r['raw_value']) && is_numeric($r['raw_value']) ? (int)$r['raw_value'] : null,
-                        'offline_sync', $ts,
-                    ]);
-                    $counts['feed_readings']++;
-                    $lastFeedPct = $pct;
+                    $rejected[] = "readings[{$i}]: invalid temperature/humidity";
                 }
             }
 
-            // --- buffered water sample ---
-            if (isset($r['distance_cm']) && is_numeric($r['distance_cm'])) {
-                $d = (float)$r['distance_cm'];
-                if ($d <= 0 || $d > 400) {
-                    $rejected[] = "readings[{$i}]: distance {$d} cm out of range";
+            // --- buffered water sample (percentage from the level sensor) ---
+            if (isset($r['water_percentage'])) {
+                $p = $r['water_percentage'];
+                if (!is_numeric($p) || $p < 0 || $p > 100) {
+                    $rejected[] = "readings[{$i}]: water level out of range";
                 } else {
+                    $d     = distance_from_percentage((float)$p, $depth, $offset);
                     $water = water_from_distance($d, $depth, $offset);
                     $waterStmt->execute([
-                        $deviceId, $water['level'], $water['percentage'], round($d, 2),
+                        $deviceId, $water['level'], $water['percentage'], $d,
                         'offline_sync', $ts,
                     ]);
                     $counts['water_readings']++;
@@ -173,8 +160,8 @@ api_run(function (array $in): ApiResult {
     // Evaluate thresholds once, against the newest replayed sample, instead of
     // once per buffered row - otherwise a long outage would produce hundreds
     // of identical alerts the moment the device reconnects.
-    if ($lastFeedPct !== null || $lastWaterPct !== null) {
-        evaluate_alerts($deviceId, $settings, $lastFeedPct ?? 100.0, $lastWaterPct ?? 100.0);
+    if ($lastWaterPct !== null) {
+        evaluate_alerts($deviceId, $settings, $lastWaterPct);
     }
 
     log_activity('OFFLINE_SYNC', sprintf(

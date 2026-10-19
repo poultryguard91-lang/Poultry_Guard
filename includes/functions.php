@@ -261,23 +261,6 @@ function get_settings(int $deviceId): array
     return $st->fetch() ?: [];
 }
 
-/** Active calibration values for a device keyed by sensor type. */
-function get_calibration(int $deviceId): array
-{
-    $st = db()->prepare(
-        'SELECT * FROM sensor_calibration
-         WHERE device_id = ? AND is_active = 1
-         ORDER BY calibrated_at DESC'
-    );
-    $st->execute([$deviceId]);
-    $out = [];
-    foreach ($st->fetchAll() as $row) {
-        // The ORDER BY means the first row per type is the newest one.
-        $out[$row['sensor_type']] ??= $row;
-    }
-    return $out;
-}
-
 /**
  * Is the device considered online? A device is online when it has
  * contacted the API within its configured offline timeout.
@@ -324,19 +307,8 @@ function status_color(string $status): string
 }
 
 /**
- * Convert a load cell weight to a percentage of hopper capacity, clamped
- * to 0-100 so a slightly over-filled hopper never renders as 104%.
- */
-function feed_percentage(float $weightGrams, float $capacityGrams): float
-{
-    if ($capacityGrams <= 0) {
-        return 0.0;
-    }
-    return round(max(0.0, min(100.0, $weightGrams / $capacityGrams * 100)), 2);
-}
-
-/**
- * Convert an HC-SR04 distance reading into water depth.
+ * Convert a sensor-to-surface distance into water depth (the level strip's
+ * percentage is converted to a distance first, see distance_from_percentage()).
  *
  * The sensor points down from above the tank. `sensor_offset_cm` is the gap
  * between the sensor face and the full-water line; `tank_depth` is the usable
@@ -411,17 +383,8 @@ function unread_alert_count(?int $deviceId = null): int
  * Evaluate a fresh sensor sample against the alert thresholds and raise
  * alerts where needed. Called whenever the ESP32 uploads data.
  */
-function evaluate_alerts(int $deviceId, array $settings, float $feedPct, float $waterPct): void
+function evaluate_alerts(int $deviceId, array $settings, float $waterPct): void
 {
-    $feedStatus = level_status($feedPct, (float)$settings['feed_low_percent'], (float)$settings['feed_critical_percent']);
-    if ($feedStatus === 'CRITICAL') {
-        create_alert($deviceId, 'critical_feed', 'CRITICAL',
-            sprintf('Feed level at %.1f%% — critical. Refill the hopper immediately.', $feedPct));
-    } elseif ($feedStatus === 'LOW') {
-        create_alert($deviceId, 'low_feed', 'WARNING',
-            sprintf('Feed level dropped to %.1f%% — below the %.0f%% low threshold.', $feedPct, (float)$settings['feed_low_percent']));
-    }
-
     $waterStatus = level_status($waterPct, (float)$settings['water_low_percent'], (float)$settings['water_critical_percent']);
     if ($waterStatus === 'CRITICAL') {
         create_alert($deviceId, 'critical_water', 'CRITICAL',
@@ -476,16 +439,6 @@ function client_ip(): string
 // Readings
 // =====================================================================
 
-/** Most recent feed reading for a device, or null. */
-function latest_feed_reading(int $deviceId): ?array
-{
-    $st = db()->prepare(
-        'SELECT * FROM feed_readings WHERE device_id = ? ORDER BY timestamp DESC, reading_id DESC LIMIT 1'
-    );
-    $st->execute([$deviceId]);
-    return $st->fetch() ?: null;
-}
-
 /** Most recent water reading for a device, or null. */
 function latest_water_reading(int $deviceId): ?array
 {
@@ -502,13 +455,12 @@ function latest_water_reading(int $deviceId): ?array
  * Pulling 2,880 rows for a 24 hour window would make the chart unreadable
  * and the payload large, so rows are averaged into fixed-width buckets.
  *
- * @param string $kind 'feed' or 'water'
  */
-function reading_history(int $deviceId, string $kind, int $hours, int $bucketMinutes = 30): array
+function reading_history(int $deviceId, int $hours, int $bucketMinutes = 30): array
 {
-    $table = $kind === 'feed' ? 'feed_readings' : 'water_readings';
-    $value = $kind === 'feed' ? 'feed_weight' : 'water_level';
-    $pct   = $kind === 'feed' ? 'feed_percentage' : 'water_percentage';
+    $table = 'water_readings';
+    $value = 'water_level';
+    $pct   = 'water_percentage';
 
     // Bucket by flooring the timestamp to a multiple of $bucketMinutes.
     // The bucket width appears twice in the expression, and a native (non-
@@ -537,6 +489,32 @@ function reading_history(int $deviceId, string $kind, int $hours, int $bucketMin
         'time'       => $r['bucket_time'],
         'value'      => (float)$r['value'],
         'percentage' => (float)$r['percentage'],
+    ], $st->fetchAll());
+}
+
+/**
+ * Down-sampled DHT11 history (average temperature / humidity per bucket).
+ */
+function climate_history(int $deviceId, int $hours, int $bucketMinutes = 30): array
+{
+    $bucketSeconds = $bucketMinutes * 60;
+    $st = db()->prepare(
+        'SELECT FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(`timestamp`) / :bucket_a) * :bucket_b) AS bucket_time,
+                ROUND(AVG(temperature_c), 1) AS temperature,
+                ROUND(AVG(humidity_pct), 0)  AS humidity
+         FROM climate_readings
+         WHERE device_id = :device AND `timestamp` >= DATE_SUB(NOW(), INTERVAL :hours HOUR)
+         GROUP BY bucket_time ORDER BY bucket_time ASC'
+    );
+    $st->bindValue(':bucket_a', $bucketSeconds, PDO::PARAM_INT);
+    $st->bindValue(':bucket_b', $bucketSeconds, PDO::PARAM_INT);
+    $st->bindValue(':device', $deviceId, PDO::PARAM_INT);
+    $st->bindValue(':hours', $hours, PDO::PARAM_INT);
+    $st->execute();
+    return array_map(static fn(array $r): array => [
+        'time'        => $r['bucket_time'],
+        'temperature' => (float)$r['temperature'],
+        'humidity'    => (float)$r['humidity'],
     ], $st->fetchAll());
 }
 
@@ -662,36 +640,26 @@ function period_dispensed(string $table, string $amountExpr, int $deviceId, stri
 }
 
 /**
- * Feed consumption per period, in grams.
+ * Feeder activity per period: how many runs and how many seconds the motor ran.
  *
- * @return list<array{period:string, consumed:float, dispensed:float, events:int}>
+ * @return list<array{period:string, runs:int, seconds:float}>
  */
-function feed_consumption(int $deviceId, string $from, string $to, string $period = 'daily'): array
+function feed_runs(int $deviceId, string $from, string $to, string $period = 'daily'): array
 {
-    $bounds    = period_boundaries('feed_readings', 'feed_weight', $deviceId, $from, $to, $period);
-    $dispensed = period_dispensed(
-        'feed_dispensing',
-        'GREATEST(COALESCE(dispensed_amount, actual_weight - start_weight), 0)',
-        $deviceId, $from, $to, $period
+    $expr = period_expression($period);
+    $st = db()->prepare(
+        "SELECT {$expr} AS period, COUNT(*) AS runs, COALESCE(SUM(duration_ms), 0) / 1000 AS seconds
+         FROM feed_dispensing
+         WHERE device_id = :device AND status = 'completed'
+           AND `timestamp` >= :from AND `timestamp` < :to
+         GROUP BY period ORDER BY period ASC"
     );
-
-    $periods = array_unique(array_merge(array_keys($bounds), array_keys($dispensed)));
-    sort($periods);
-
-    $rows = [];
-    foreach ($periods as $p) {
-        $drop  = isset($bounds[$p]) ? $bounds[$p]['first'] - $bounds[$p]['last'] : 0.0;
-        $added = $dispensed[$p]['amount'] ?? 0.0;
-        $rows[] = [
-            'period'    => $p,
-            // A negative result would mean more was added than the balance
-            // explains (e.g. a manual hopper top-up), so floor at zero.
-            'consumed'  => round(max(0.0, $drop + $added), 2),
-            'dispensed' => round($added, 2),
-            'events'    => $dispensed[$p]['events'] ?? 0,
-        ];
-    }
-    return $rows;
+    $st->execute([':device' => $deviceId, ':from' => $from, ':to' => $to]);
+    return array_map(static fn(array $r): array => [
+        'period'  => (string)$r['period'],
+        'runs'    => (int)$r['runs'],
+        'seconds' => round((float)$r['seconds'], 1),
+    ], $st->fetchAll());
 }
 
 /**
@@ -729,75 +697,4 @@ function water_consumption(int $deviceId, string $from, string $to, string $peri
         ];
     }
     return $rows;
-}
-
-/**
- * Feed Conversion Ratio for a flock.
- *
- *     FCR = total feed consumed (kg) / total live weight gain (kg)
- *
- * Weight gain uses the surviving bird count at each weigh-in, so birds lost
- * to mortality do not inflate the gain figure. A lower FCR is better.
- *
- * @return array{...}|null null when the flock has too few weigh-ins to compute.
- */
-function flock_fcr(int $flockId): ?array
-{
-    $st = db()->prepare('SELECT * FROM flocks WHERE flock_id = ?');
-    $st->execute([$flockId]);
-    $flock = $st->fetch();
-    if (!$flock) {
-        return null;
-    }
-
-    $rs = db()->prepare(
-        'SELECT * FROM production_records WHERE flock_id = ? ORDER BY record_date ASC'
-    );
-    $rs->execute([$flockId]);
-    $records = $rs->fetchAll();
-    if (count($records) < 2) {
-        return null;
-    }
-
-    $first = $records[0];
-    $last  = $records[count($records) - 1];
-
-    // Live weight now, versus the weight of that same surviving population
-    // at placement. Using the ending bird count on both sides isolates growth.
-    $endCount    = (int)$last['bird_count'];
-    $startWeight = $endCount * (float)$first['avg_weight'];
-    $endWeight   = $endCount * (float)$last['avg_weight'];
-    $gainKg      = ($endWeight - $startWeight) / 1000.0;
-
-    $from = $first['record_date'] . ' 00:00:00';
-    $to   = date('Y-m-d 23:59:59', strtotime((string)$last['record_date']));
-
-    $consumption = feed_consumption((int)$flock['device_id'], $from, $to, 'daily');
-    $feedG = array_sum(array_column($consumption, 'consumed'));
-    $feedKg = $feedG / 1000.0;
-
-    $days = max(1, (int)((strtotime((string)$last['record_date']) - strtotime((string)$first['record_date'])) / 86400));
-
-    return [
-        'flock_id'         => (int)$flock['flock_id'],
-        'flock_name'       => $flock['flock_name'],
-        'house_name'       => $flock['house_name'],
-        'breed'            => $flock['breed'],
-        'device_id'        => (int)$flock['device_id'],
-        'start_date'       => $first['record_date'],
-        'end_date'         => $last['record_date'],
-        'age_days'         => $days,
-        'initial_count'    => (int)$first['bird_count'],
-        'current_count'    => $endCount,
-        'mortality'        => (int)$first['bird_count'] - $endCount,
-        'mortality_rate'   => (int)$first['bird_count'] > 0
-            ? round(((int)$first['bird_count'] - $endCount) / (int)$first['bird_count'] * 100, 2) : 0.0,
-        'start_avg_weight' => round((float)$first['avg_weight'], 2),
-        'current_avg_weight' => round((float)$last['avg_weight'], 2),
-        'weight_gain_kg'   => round($gainKg, 3),
-        'feed_consumed_kg' => round($feedKg, 3),
-        'fcr'              => $gainKg > 0 ? round($feedKg / $gainKg, 3) : null,
-        'adg_grams'        => round(((float)$last['avg_weight'] - (float)$first['avg_weight']) / $days, 2),
-        'records'          => $records,
-    ];
 }

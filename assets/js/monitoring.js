@@ -1,38 +1,26 @@
 /* =====================================================================
-   PoultryGuard - monitoring pages (feed and water).
+   PoultryGuard - water monitoring page.
 
-   Both pages share this controller; window.PG_PAGE.kind selects which
-   sensor it is driving. The two views differ only in units, endpoint and
-   the handful of fields that are specific to one sensor.
+   Drives the water level sensor view (the feeder is timed, so it has no
+   level of its own to monitor).
    ===================================================================== */
 
 (function () {
     'use strict';
 
-    const kind = (window.PG_PAGE || {}).kind === 'water' ? 'water' : 'feed';
+    const kind = 'water';
     const deviceId = PG.deviceId;
     if (!deviceId) return;
 
-    // Everything that differs between the two pages, in one place.
-    const spec = kind === 'feed'
-        ? {
-            endpoint: 'api/feed/read.php',
-            color: PG.charts.COLORS.feed,
-            chartLabel: 'Feed weight',
-            unit: PG.fmt.weight,
-            barClass: 'feed',
-            accuracyUnit: 'g',
-            hardwareLabel: 'auger'
-        }
-        : {
-            endpoint: 'api/water/read.php',
-            color: PG.charts.COLORS.water,
-            chartLabel: 'Water depth',
-            unit: PG.fmt.cm,
-            barClass: 'water',
-            accuracyUnit: 'cm',
-            hardwareLabel: 'valve'
-        };
+    const spec = {
+        endpoint: 'api/water/read.php',
+        color: PG.charts.COLORS.water,
+        chartLabel: 'Water depth',
+        unit: PG.fmt.cm,
+        barClass: 'water',
+        accuracyUnit: 'cm',
+        hardwareLabel: 'pump'
+    };
 
     let chart = null;
     let hours = 24;
@@ -43,7 +31,7 @@
     function paintCurrent(c, device) {
         const pct = c.percentage;
 
-        PG.setText('mainReading', kind === 'feed' ? c.weight_display : c.level_display);
+        PG.setText('mainReading', c.level_display);
         PG.setText('mainPercent', PG.fmt.percent(pct));
         PG.setText('infoThreshold', spec.unit(c.threshold) + ' (' + PG.fmt.percent(c.threshold_percent) + ')');
         PG.setText('infoTarget', spec.unit(c.target));
@@ -51,15 +39,8 @@
         PG.setText('infoAuto', c.auto ? 'Enabled' : 'Disabled');
         PG.setText('infoAge', c.reading_ago);
 
-        if (kind === 'feed') {
-            PG.setText('infoRemaining', PG.fmt.weight(c.remaining_to_full));
-            PG.setText('infoRaw', c.raw_value === null ? 'Not reported' : PG.fmt.number(c.raw_value));
-        } else {
-            PG.setText('mainLiters', PG.fmt.liters(c.liters));
-            PG.setText('infoVolume', PG.fmt.liters(c.capacity_liters));
-            PG.setText('infoRaw', PG.fmt.cm(c.distance_cm));
-            PG.setText('infoOffset', PG.fmt.cm(c.sensor_offset_cm));
-        }
+        PG.setText('mainLiters', PG.fmt.liters(c.liters));
+        PG.setText('infoVolume', PG.fmt.liters(c.capacity_liters));
 
         // Status pill
         const pill = document.getElementById('statusPill');
@@ -85,13 +66,13 @@
         const sensorStatus = device.sensor_status;
         PG.setText('sensorStatus', device.online ? PG.fmt.label(sensorStatus) : 'Unknown');
         PG.setText('sensorSub', device.online
-            ? (sensorStatus === 'ok' ? 'Reporting normally' : 'Check the wiring and calibration')
+            ? (sensorStatus === 'ok' ? 'Reporting normally' : 'Check the sensor wiring')
             : 'Controller is offline');
 
-        const actuator = kind === 'feed' ? device.motor_status : device.solenoid_status;
+        const actuator = device.solenoid_status;
         PG.setText('motorStatus', device.online ? PG.fmt.label(actuator) : 'Unknown');
         PG.setText('motorSub', device.online
-            ? (actuator === 'running' ? 'Currently ' + (kind === 'feed' ? 'dispensing' : 'filling')
+            ? (actuator === 'running' ? 'Currently filling'
                                       : 'Idle and ready')
             : 'Controller is offline');
     }
@@ -116,29 +97,24 @@
 
         if (!rows.length) {
             body.innerHTML = '<tr><td colspan="10" class="text-center pg-muted py-4">' +
-                'No ' + (kind === 'feed' ? 'dispensing' : 'refill') + ' events recorded yet.</td></tr>';
+                'No refill events recorded yet.</td></tr>';
             return;
         }
 
         body.innerHTML = rows.map(function (r) {
-            const isFeed = kind === 'feed';
-            const before = isFeed ? PG.fmt.weight(r.start_weight)  : PG.fmt.cm(r.starting_level);
-            const target = isFeed ? PG.fmt.weight(r.target_weight) : PG.fmt.cm(r.target_level);
-            const after  = isFeed
-                ? (r.actual_weight === null ? '--' : PG.fmt.weight(r.actual_weight))
-                : (r.ending_level === null ? '--' : PG.fmt.cm(r.ending_level));
-            const added  = isFeed
-                ? (r.dispensed_display || '--')
-                : (r.added_cm === null ? '--' : PG.fmt.cm(r.added_cm));
+            const before = PG.fmt.cm(r.starting_level);
+            const target = PG.fmt.cm(r.target_level);
+            const after  = r.ending_level === null ? '--' : PG.fmt.cm(r.ending_level);
+            const added  = r.added_cm === null ? '--' : PG.fmt.cm(r.added_cm);
 
-            const err = isFeed ? r.accuracy_g : r.accuracy_cm;
+            const err = r.accuracy_cm;
             const errText = (err === null || err === undefined)
                 ? '--'
                 : (err > 0 ? '+' : '') + err + ' ' + spec.accuracyUnit;
 
             // Highlight a run that missed the accuracy target.
             const errClass = (err === null || err === undefined) ? ''
-                : (Math.abs(err) > (isFeed ? 5 : 1) ? ' text-danger fw-semibold' : ' text-success');
+                : (Math.abs(err) > 1 ? ' text-danger fw-semibold' : ' text-success');
 
             const methodBadge = r.dispensing_method === 'manual' ? 'bg-secondary'
                 : (r.dispensing_method === 'offline' ? 'bg-dark' : 'bg-success');

@@ -74,29 +74,9 @@ function setting_field(
             <div class="pg-card-body">
                 <div class="row g-3">
                     <?php
-                    setting_field('feed_capacity', 'Maximum feed capacity', 'g',
-                        'Weight of a completely full hopper.', $CAN_THRESHOLDS, '1', '100', '500000');
-                    setting_field('feed_threshold', 'Minimum feed threshold', 'g',
-                        'Dispensing starts when the weight falls below this.', $CAN_THRESHOLDS, '1', '0');
-                    setting_field('target_feed', 'Target feed quantity', 'g',
-                        'The auger runs until the hopper reaches this weight.', $CAN_THRESHOLDS, '1', '0');
                     setting_field('feed_max_duration', 'Maximum motor run time', 'seconds',
-                        'Safety cut-off: the auger never runs longer than this in one cycle.', $CAN_THRESHOLDS, '1', '1', '3600');
-                    setting_field('feed_tolerance', 'Dispensing tolerance', 'g',
-                        'How close to the target counts as done. The design target is ±5 g.', $CAN_THRESHOLDS, '0.1', '0.1');
+                        'Safety cut-off: the feeder motor never runs longer than this in one run.', $CAN_THRESHOLDS, '1', '1', '3600');
                     ?>
-                    <div class="col-md-6 d-flex align-items-end">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="auto_feed"
-                                   <?= $CAN_THRESHOLDS ? '' : 'disabled' ?>>
-                            <label class="form-check-label fw-semibold" for="auto_feed">
-                                Automatic feeding
-                            </label>
-                            <div class="form-text">
-                                When off, the ESP32 stops dispensing on its own — including offline.
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <?php if ($CAN_THRESHOLDS): ?>
@@ -125,14 +105,12 @@ function setting_field(
                         'Usable water depth from the full line to the bottom of the tank.', $CAN_THRESHOLDS, '0.1', '1', '400');
                     setting_field('water_capacity_liters', 'Tank volume at full', 'litres',
                         'Used to report consumption in litres rather than centimetres.', $CAN_THRESHOLDS, '0.1', '1');
-                    setting_field('sensor_offset_cm', 'Ultrasonic sensor offset', 'cm',
-                        'Gap between the sensor face and the full-water line.', $CAN_THRESHOLDS, '0.1', '0', '400');
                     setting_field('water_threshold', 'Minimum water threshold', 'cm',
-                        'The valve opens when the depth falls below this.', $CAN_THRESHOLDS, '0.1', '0', '400');
+                        'The pump starts when the depth falls below this.', $CAN_THRESHOLDS, '0.1', '0', '400');
                     setting_field('water_target', 'Target water level', 'cm',
-                        'The valve closes once the tank reaches this depth.', $CAN_THRESHOLDS, '0.1', '0', '400');
-                    setting_field('water_max_duration', 'Maximum valve open time', 'seconds',
-                        'Safety cut-off: the valve never stays open longer than this.', $CAN_THRESHOLDS, '1', '1', '7200');
+                        'The pump stops once the tank reaches this depth.', $CAN_THRESHOLDS, '0.1', '0', '400');
+                    setting_field('water_max_duration', 'Maximum pump run time', 'seconds',
+                        'Safety cut-off: the pump never runs longer than this.', $CAN_THRESHOLDS, '1', '1', '7200');
                     ?>
                     <div class="col-md-6 d-flex align-items-end">
                         <div class="form-check form-switch">
@@ -170,10 +148,6 @@ function setting_field(
             <div class="pg-card-body">
                 <div class="row g-3">
                     <?php
-                    setting_field('feed_low_percent', 'Low feed threshold', '%',
-                        'A warning alert is raised below this percentage of capacity.', $CAN_ALERTS, '0.1', '0', '100');
-                    setting_field('feed_critical_percent', 'Critical feed threshold', '%',
-                        'A critical alert is raised below this. Must be lower than the low threshold.', $CAN_ALERTS, '0.1', '0', '100');
                     setting_field('water_low_percent', 'Low water threshold', '%',
                         'A warning alert is raised below this percentage of tank depth.', $CAN_ALERTS, '0.1', '0', '100');
                     setting_field('water_critical_percent', 'Critical water threshold', '%',

@@ -12,7 +12,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_page_auth('dashboard.view');
 
 $PAGE_TITLE    = 'Dashboard';
-$PAGE_SUBTITLE = 'Live feed and water status for your poultry house.';
+$PAGE_SUBTITLE = 'Live water, feeder and climate status for your poultry house.';
 $NAV_ACTIVE    = 'dashboard';
 $PAGE_ACTIONS  = '<button class="btn btn-sm btn-light" id="pgRefresh">Refresh now</button>';
 $PAGE_SCRIPTS  = [asset_url('assets/js/dashboard.js')];
@@ -26,11 +26,11 @@ require __DIR__ . '/../includes/header.php';
         <div class="pg-card h-100">
             <div class="pg-card-body">
                 <div class="pg-metric">
-                    <div class="pg-metric-icon feed" aria-hidden="true">&#127806;</div>
+                    <div class="pg-metric-icon feed" aria-hidden="true">&#127777;</div>
                     <div class="flex-grow-1 min-width-0">
-                        <p class="pg-metric-label">Feed level</p>
-                        <p class="pg-metric-value pg-skeleton" id="tileFeedValue">0.00 kg</p>
-                        <p class="pg-metric-sub" id="tileFeedSub">&nbsp;</p>
+                        <p class="pg-metric-label">Temperature</p>
+                        <p class="pg-metric-value pg-skeleton" id="tileTempValue">-- °C</p>
+                        <p class="pg-metric-sub" id="tileTempSub">&nbsp;</p>
                     </div>
                 </div>
             </div>
@@ -85,54 +85,34 @@ require __DIR__ . '/../includes/header.php';
 
 <!-- ======================= Feed & water cards ======================= -->
 <div class="row g-3 mb-3">
-    <!-- Feed monitoring -->
+    <!-- Feeder -->
     <div class="col-lg-6">
         <div class="pg-card accent-feed h-100">
             <div class="pg-card-head">
-                <h2>Feed monitoring</h2>
+                <h2>Feeder</h2>
                 <span class="pg-pill unknown" id="feedStatusPill">
                     <span class="dot" aria-hidden="true"></span><span id="feedStatusText">--</span>
                 </span>
             </div>
             <div class="pg-card-body">
-                <div class="d-flex align-items-end justify-content-between mb-1">
-                    <div>
-                        <span class="pg-reading" id="feedWeight">--</span>
-                        <small id="feedPercent"></small>
-                    </div>
-                    <div class="text-end small pg-muted">
-                        <div>Capacity <span id="feedCapacity">--</span></div>
-                        <div>Updated <span id="feedUpdated">--</span></div>
-                    </div>
-                </div>
-
-                <div class="pg-level mt-3 mb-2">
-                    <div class="pg-level-fill feed" id="feedBar" style="width:0%"></div>
-                    <div class="pg-level-threshold" id="feedThresholdMark" data-label="Refill" style="left:0%"></div>
-                </div>
-
-                <div class="row g-2 small mt-2">
+                <div class="row g-2 small">
                     <div class="col-6">
-                        <div class="pg-muted">Refill threshold</div>
-                        <div class="fw-semibold" id="feedThreshold">--</div>
+                        <div class="pg-muted">Last run</div>
+                        <div class="fw-semibold" id="feedLastRun">--</div>
                     </div>
                     <div class="col-6">
-                        <div class="pg-muted">Refill target</div>
-                        <div class="fw-semibold" id="feedTarget">--</div>
+                        <div class="pg-muted">Last run length</div>
+                        <div class="fw-semibold" id="feedLastSeconds">--</div>
                     </div>
                     <div class="col-6">
-                        <div class="pg-muted">Last dispensed</div>
-                        <div class="fw-semibold" id="feedLastDispensed">--</div>
-                    </div>
-                    <div class="col-6">
-                        <div class="pg-muted">Automatic feeding</div>
-                        <div class="fw-semibold" id="feedAuto">--</div>
+                        <div class="pg-muted">Safety limit per run</div>
+                        <div class="fw-semibold" id="feedMaxDuration">--</div>
                     </div>
                 </div>
 
                 <div class="pg-divider"></div>
                 <div class="d-flex justify-content-between small">
-                    <span class="pg-muted">Consumed today</span>
+                    <span class="pg-muted">Runs today</span>
                     <span class="fw-semibold" id="feedToday">--</span>
                 </div>
             </div>
@@ -192,6 +172,38 @@ require __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
+
+    <!-- House climate (DHT11) -->
+    <div class="col-12">
+        <div class="pg-card h-100">
+            <div class="pg-card-head">
+                <h2>House climate</h2>
+                <span class="pg-pill unknown" id="climateStatusPill">
+                    <span class="dot" aria-hidden="true"></span><span id="climateStatusText">--</span>
+                </span>
+            </div>
+            <div class="pg-card-body">
+                <div class="row g-3 small">
+                    <div class="col-6 col-md-3">
+                        <div class="pg-muted">Temperature</div>
+                        <div class="fw-semibold fs-5" id="climateTemp">--</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="pg-muted">Humidity</div>
+                        <div class="fw-semibold fs-5" id="climateHumidity">--</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="pg-muted">Heat limits</div>
+                        <div class="fw-semibold" id="climateLimits">--</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="pg-muted">Updated</div>
+                        <div class="fw-semibold" id="climateUpdated">--</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- ======================= Trend charts ======================= -->
@@ -199,7 +211,7 @@ require __DIR__ . '/../includes/header.php';
     <div class="col-lg-6">
         <div class="pg-card h-100">
             <div class="pg-card-head">
-                <h2>Feed level over time</h2>
+                <h2>Temperature over time</h2>
                 <select class="form-select form-select-sm w-auto" id="chartRange" aria-label="Chart time range">
                     <option value="6">Last 6 hours</option>
                     <option value="24" selected>Last 24 hours</option>
@@ -208,7 +220,7 @@ require __DIR__ . '/../includes/header.php';
                 </select>
             </div>
             <div class="pg-card-body">
-                <div class="pg-chart"><canvas id="feedLevelChart"></canvas></div>
+                <div class="pg-chart"><canvas id="climateChart"></canvas></div>
             </div>
         </div>
     </div>
@@ -226,9 +238,9 @@ require __DIR__ . '/../includes/header.php';
 <div class="row g-3 mb-3">
     <div class="col-lg-6">
         <div class="pg-card h-100">
-            <div class="pg-card-head"><h2>Daily feed consumption</h2></div>
+            <div class="pg-card-head"><h2>Daily feeder runs</h2></div>
             <div class="pg-card-body">
-                <div class="pg-chart sm"><canvas id="feedConsumptionChart"></canvas></div>
+                <div class="pg-chart sm"><canvas id="feedRunsChart"></canvas></div>
             </div>
         </div>
     </div>
@@ -276,19 +288,15 @@ require __DIR__ . '/../includes/header.php';
                         <span class="pg-pill unknown" id="statInternet">--</span>
                     </li>
                     <li class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <span>Load cell (feed sensor)</span>
-                        <span class="pg-pill unknown" id="statFeedSensor">--</span>
-                    </li>
-                    <li class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <span>Ultrasonic (water sensor)</span>
+                        <span>Water level sensor</span>
                         <span class="pg-pill unknown" id="statWaterSensor">--</span>
                     </li>
                     <li class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <span>Feed auger motor</span>
+                        <span>Feeder motor</span>
                         <span class="pg-pill unknown" id="statMotor">--</span>
                     </li>
                     <li class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <span>Solenoid valve</span>
+                        <span>Water pump</span>
                         <span class="pg-pill unknown" id="statSolenoid">--</span>
                     </li>
                     <li class="d-flex justify-content-between align-items-center py-2">

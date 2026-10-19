@@ -24,7 +24,7 @@ $ALERT_TYPES = [
     'low_water' => 'Low water', 'critical_water' => 'Critical water',
     'sensor_failure' => 'Sensor failure', 'device_offline' => 'Device offline',
     'internet_disconnected' => 'Internet disconnected', 'motor_error' => 'Motor error',
-    'solenoid_error' => 'Solenoid error', 'abnormal_reading' => 'Abnormal reading',
+    'solenoid_error' => 'Pump error', 'abnormal_reading' => 'Abnormal reading',
     'dispensing_timeout' => 'Dispensing timeout', 'system_error' => 'System error',
     'info' => 'Information',
 ];

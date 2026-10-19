@@ -28,7 +28,7 @@ window.PG_PAGE = { kind: 'water' };
     <div>
         Commands are queued and picked up by the controller on its next check-in
         (usually within <?= (int)($DEVICE_SETTINGS['reading_interval'] ?? 30) ?> seconds).
-        The ESP32 closes the solenoid valve itself once the target level is reached,
+        The ESP32 stops the pump itself once the target level is reached,
         or after the
         <strong><?= (int)($DEVICE_SETTINGS['water_max_duration'] ?? 300) ?>&nbsp;second</strong>
         safety timeout, whichever comes first.
@@ -58,9 +58,9 @@ window.PG_PAGE = { kind: 'water' };
                 <div class="row g-2 small mt-3 text-start">
                     <div class="col-6"><span class="pg-muted">Tank depth</span>
                         <div class="fw-semibold" id="infoCapacity">--</div></div>
-                    <div class="col-6"><span class="pg-muted">Default target</span>
+                    <div class="col-6"><span class="pg-muted">Refill starts below</span>
                         <div class="fw-semibold" id="infoTarget">--</div></div>
-                    <div class="col-6"><span class="pg-muted">Valve</span>
+                    <div class="col-6"><span class="pg-muted">Pump</span>
                         <div class="fw-semibold" id="motorStatus">--</div></div>
                     <div class="col-6"><span class="pg-muted">Controller</span>
                         <div class="fw-semibold" id="deviceStatus">--</div></div>
@@ -82,32 +82,11 @@ window.PG_PAGE = { kind: 'water' };
                 </div>
 
                 <form id="dispenseForm" novalidate>
-                    <label for="targetWeight" class="form-label fw-semibold small">
-                        Fill the tank up to
-                    </label>
-                    <div class="input-group mb-1" style="max-width: 320px;">
-                        <input type="number" class="form-control" id="targetWeight"
-                               min="0" step="1" required aria-describedby="targetHelp">
-                        <span class="input-group-text">cm</span>
-                    </div>
-                    <div class="form-text mb-3" id="targetHelp">
-                        The valve stays open until the ultrasonic sensor reads this depth.
-                        The target must be above the current level.
-                    </div>
+                    <p class="small mb-3">
+                        The pump runs until the water level sensor reads <strong>full</strong>,
+                        or until the safety time limit, whichever comes first.
+                    </p>
                     <div class="invalid-feedback d-block text-danger small mb-2 d-none" id="targetError"></div>
-
-                    <div class="row g-2 mb-3" style="max-width: 520px;">
-                        <div class="col-6">
-                            <button type="button" class="btn btn-light w-100 btn-sm" data-preset="target">
-                                Refill target
-                            </button>
-                        </div>
-                        <div class="col-6">
-                            <button type="button" class="btn btn-light w-100 btn-sm" data-preset="full">
-                                Fill to full depth
-                            </button>
-                        </div>
-                    </div>
 
                     <div class="row g-2">
                         <div class="col-sm-7">
@@ -130,7 +109,7 @@ window.PG_PAGE = { kind: 'water' };
                         <div>
                             <div class="fw-bold text-danger">Emergency stop</div>
                             <div class="small pg-muted">
-                                Halts the valve and the auger immediately and switches off both
+                                Halts the pump and the feeder immediately and switches off both
                                 automations until you turn them back on in Settings.
                             </div>
                         </div>

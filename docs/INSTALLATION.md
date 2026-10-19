@@ -12,12 +12,12 @@ working ESP32 controller.
 | | Minimum | Notes |
 |---|---|---|
 | XAMPP | 8.0+ | Provides Apache, PHP and MariaDB together |
-| PHP | 8.0 | 8.2 recommended. Needs `pdo_mysql`; `curl` for the simulator |
+| PHP | 8.0 | 8.2 recommended. Needs `pdo_mysql` |
 | MySQL / MariaDB | MySQL 8.0 or MariaDB 10.4 | The schema is written to run on both |
 | Browser | Any current Chrome, Edge, Firefox or Safari | Including mobile |
 | Arduino IDE | 2.x (or 1.8.19) | Only if you are flashing real hardware |
 
-**Hardware** (optional — the simulator replaces it for demos)
+**Hardware** (optional — the demo data populates the dashboard without it)
 
 See [HARDWARE.md](HARDWARE.md) for the full bill of materials and wiring.
 
@@ -81,12 +81,11 @@ Press Enter at the password prompt if your MySQL root account has no password
 
 ### What the import creates
 
-* 14 InnoDB tables with foreign keys and indexes
+* 11 InnoDB tables with foreign keys and indexes
 * 3 user accounts (2 owners, 1 staff)
-* 2 demo devices with automation settings and calibration values
-* ~1,344 sensor readings covering the last 14 days
-* 56 dispensing events, 10 alerts, 8 activity log entries
-* 2 flocks with weigh-ins, so the FCR report works immediately
+* 2 demo devices with automation settings
+* ~1,344 water and ~1,344 temperature/humidity readings covering the last 14 days
+* sample feeder and pump runs, 10 alerts, 7 activity log entries
 
 ---
 
@@ -118,33 +117,12 @@ schema was never imported.
 
 ---
 
-## 7. Run it without hardware
+## 7. Test without hardware
 
-The simulator speaks the same REST protocol as the firmware, so you can
-demonstrate and test the entire system before any electronics exist.
-
-```
-cd C:\xampp\htdocs\PoultryGuard
-php tools\device_simulator.php
-```
-
-Useful options:
-
-```
-php tools\device_simulator.php --speed=1800      # a day of consumption in ~48 s
-php tools\device_simulator.php --device=2        # act as the second demo house
-php tools\device_simulator.php --offline=30      # run offline first, then sync
-php tools\device_simulator.php --once            # send one reading and exit
-php tools\device_simulator.php --help
-```
-
-Leave the dashboard open in a browser while it runs. You will see the hopper
-drain, the auger cut in when it crosses the threshold, the level jump back to
-the target, and alerts appear. With `--offline=30` you can watch it keep feeding
-with the server unreachable and then upload everything it buffered.
-
-If it reports that it cannot reach the server, check that Apache is running and
-pass the right URL: `--url=http://localhost/PoultryGuard`.
+There is no simulator for the current hardware. With the demo data imported the
+dashboard is already populated; to try the device API by hand, POST to
+`/api/esp32/sensor-data.php` with the `X-API-Key` header and a body such as
+`{"esp32_uid":"ESP32-A1B2C3D4E5F6","water_percentage":62,"temperature":29.5,"humidity":70}`.
 
 ---
 
@@ -160,8 +138,8 @@ pass the right URL: `--url=http://localhost/PoultryGuard`.
 2. **Tools → Board → Boards Manager**, search `esp32`, install
    **esp32 by Espressif Systems**.
 3. **Tools → Manage Libraries**, install:
-   * **HX711 Arduino Library** by Bogdan Necula
-   * **ArduinoJson** by Benoit Blanchon (v6 or v7)
+   * **DHT sensor library** by Adafruit (and **Adafruit Unified Sensor**)
+   * **ArduinoJson** by Benoit Blanchon (**v7**)
 
 ### 8.2 Register the device
 
@@ -194,9 +172,26 @@ The ESP32 and the server must be on the same network, and Windows Firewall must
 allow inbound connections to Apache. If the device cannot connect, temporarily
 allow port 80 for Private networks and try again.
 
-Also check the pin numbers in section 3 of `config.h` against how you actually
-wired the board, and `RELAY_ACTIVE_LOW` against your relay module (most cheap
-boards are active-low, which is the default).
+Pins, the water-sensor calibration (`WATER_LOW_VALUE` / `WATER_FULL_VALUE`),
+`RELAY_ACTIVE_LOW` and the pump/feeder safety timers are at the top of
+`PoultryGuard_ESP32.ino` (pump relay GPIO 27, feeder relay GPIO 26, DHT11 on
+GPIO 4, water sensor on GPIO 34).
+
+**What syncs with the dashboard**
+
+| ESP32 | Dashboard |
+|---|---|
+| Water level strip / float → % | Water monitoring card, charts, low-water alerts |
+| DHT11 temperature & humidity | *House climate* card; heat warning ≥ 32 °C, danger ≥ 35 °C raise alerts |
+| Pump runs (auto/manual) | Water refill history; dashboard **Refill** / **Stop** buttons |
+| Feeder runs (timed) | Feed history; dashboard **Dispense** sets a run time (`duration_sec`) |
+| Wi-Fi/server down | Pump and feeder keep running locally; readings and runs are buffered in RAM (60 readings / 10 runs) and uploaded on reconnect |
+
+There is no load cell, so there is no feed-weight monitoring or FCR report, and
+feeding is timed rather than weight-targeted. Existing installs get the new `climate_readings`
+table automatically from `deploy/init-db.php`; on XAMPP, import the
+`climate_readings` block at the end of the schema in `database/poultryguard.sql`
+(or re-import the whole file on a fresh install).
 
 ### 8.4 Flash
 
@@ -210,36 +205,21 @@ boards are active-low, which is the default).
 A healthy boot looks like this:
 
 ```
-========================================
- PoultryGuard ESP32 Controller
- Firmware 1.0.0
- Device UID: ESP32-KITCHEN-01
-========================================
-[CFG] Settings loaded from NVS:
-      Feed  : refill below 2500 g, up to 9000 g (auto ON)
-      Water : refill below 30.0 cm, up to 90.0 cm (auto ON)
-[SEN] Feed 7250 g (72.5%) ok | Water 78.0 cm (78.0%) dist 32.0 cm ok
-[NET] Connecting to Wi-Fi "YourWiFiName" ...
-[NET] Connected. IP 192.168.1.45, RSSI -58 dBm
-[CFG] Settings refreshed from the server.
-[SYS] Ready. Local automation is active.
+=== PoultryGuard - auto refill + manual control ===
+Pump  relay on GPIO 27 (wire to IN1)
+Motor relay on GPIO 26 (wire to IN2)
+Connecting to Wi-Fi 'YourWiFiName' ....
+Wi-Fi OK, IP 192.168.1.45
 ```
 
 Within a minute the device should show as **Online** on the Devices page.
 
-### 8.5 Calibrate
+### 8.5 Calibrate the water sensor
 
-Do this before trusting any reading. The full procedure is in
-[HARDWARE.md](HARDWARE.md); briefly:
-
-1. **Sensors → Calibration**, with the device online.
-2. Empty the hopper, press **Tare scale**, and copy the new raw offset from the
-   serial monitor into **Tare offset**.
-3. Put a known mass on the hopper (a 1 kg weight is ideal), read the raw value
-   shown on the page, enter it with the reference weight, and save.
-4. For water, measure the usable tank depth and the gap between the sensor face
-   and the full-water line, enter both, and save. The page previews what the
-   current distance reading would become before you commit.
+Open the Serial Monitor, type `status` with the sensor dry, half in water and
+fully submerged, and set `WATER_LOW_VALUE` and `WATER_FULL_VALUE` at the top of
+the sketch to the readings you see. Then enter the tank depth and volume under
+**Settings → Water settings**.
 
 ---
 
@@ -269,13 +249,12 @@ Before this leaves a workbench:
 | "Database connection failed" page | MySQL is not running, or the schema was never imported. Start MySQL in XAMPP and import `poultryguard.sql`. |
 | Blank white page | A PHP fatal error. Look in `logs/error.log` — errors are logged there rather than shown. |
 | Login says "Too many failed sign-in attempts" | Throttling after 5 failures. Wait 15 minutes, or clear the `login_attempts` table. |
-| Dashboard shows "--" everywhere | No readings for the selected device. Run the simulator, or check the device is online. |
+| Dashboard shows "--" everywhere | No readings for the selected device. Check that the device is online and sending readings. |
 | Charts are blank | No data in the selected window. Widen the range selector. |
 | Device shows Offline although it is powered | Check `SERVER_BASE_URL` is the LAN IP, that the UID and API key match the Devices page, and that Windows Firewall allows Apache. |
 | Serial shows `[API] ... HTTP 401` | The API key does not match. Regenerate it on the Devices page and reflash. |
-| Serial shows `[SEN] HX711 not responding` | Check the HX711 wiring and that DOUT/SCK match `config.h`. |
-| Serial shows `HC-SR04 gave too few valid echoes` | Check the ECHO voltage divider, and that the sensor is not aimed at a sloping surface. |
-| Weight reads negative | The tare is wrong. Re-tare with an empty hopper. |
+| Temperature shows `SENSOR ERROR` in the serial status | Check the DHT11 DATA wire on GPIO 4 and its 3.3 V / GND connections. |
+| Water level never reaches FULL | Re-check `WATER_FULL_VALUE`, and that the sensor strip is mounted so its top is your full mark. |
 | Manual control buttons are disabled | The controller is offline. Automatic feeding continues on the device regardless. |
 | Everything works but `.htaccess` seems ignored | Apache needs `AllowOverride All` for the `htdocs` directory in `httpd.conf`. |
 

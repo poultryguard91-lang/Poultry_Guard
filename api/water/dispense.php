@@ -2,10 +2,10 @@
 /**
  * POST /api/water/dispense.php
  *
- * Manual water control. Body: { "action": "start"|"stop", "device_id": 1, "target_level": 90 }
+ * Manual water control. Body: { "action": "start"|"stop", "device_id": 1 }  (the pump runs until the tank reads FULL)
  *
  * Like the feed control, this queues a command for the ESP32 rather than
- * touching the solenoid relay from the web tier.
+ * touching the pump relay from the web tier.
  *
  * Requires the automation.control permission (Farm Staff).
  */
@@ -33,13 +33,13 @@ api_run(function (array $in): ApiResult {
         $commandId = queue_command($deviceId, 'stop_water', null, (int)$user['user_id']);
 
         log_activity('MANUAL_WATER_STOP',
-            sprintf('Stop requested for the solenoid valve on %s.', $device['device_name']),
+            sprintf('Stop requested for the water pump on %s.', $device['device_name']),
             (int)$user['user_id']);
 
         return api_ok([
             'command_id' => $commandId,
             'action'     => 'stop',
-        ], 'Stop command sent. The valve will close on the next device poll.');
+        ], 'Stop command sent. The pump will stop on the next device poll.');
     }
 
     if (!device_is_online($device['last_seen'], (int)$settings['offline_timeout'])) {
@@ -49,50 +49,31 @@ api_run(function (array $in): ApiResult {
         );
     }
 
-    $depth   = (float)$settings['water_capacity'];
     $reading = latest_water_reading($deviceId);
-    $current = $reading ? (float)$reading['water_level'] : 0.0;
+    $current = $reading ? (float)$reading['water_percentage'] : 0.0;
 
-    $target = v_float(
-        $in['target_level'] ?? null,
-        'Target level',
-        0,
-        $depth,
-        (float)$settings['water_target']
-    );
-
-    // Refilling can only raise the level; ±1 cm is the sensor's own accuracy,
-    // so anything inside that band is not a meaningful request.
-    if ($target <= $current + 1.0) {
-        throw new ValidationException(sprintf(
-            'The tank is already at %.1f cm. Choose a target above %.1f cm.',
-            $current,
-            $current + 1.0
-        ));
+    // The pump runs until the level sensor reads FULL (or the safety timeout),
+    // so there is no target to choose - only whether a refill makes sense.
+    if ($reading !== null && $current >= 99.0) {
+        throw new ValidationException('The tank is already full.');
     }
 
     if ($device['solenoid_status'] === 'running') {
-        throw new ValidationException('The valve is already open. Stop the refill before starting a new one.');
+        throw new ValidationException('The pump is already running. Stop the refill before starting a new one.');
     }
 
     $commandId = queue_command($deviceId, 'refill_water', [
-        'target_level'  => $target,
-        'starting_level'=> $current,
-        'user_id'       => (int)$user['user_id'],
-        'max_duration'  => (int)$settings['water_max_duration'],
+        'user_id'      => (int)$user['user_id'],
+        'max_duration' => (int)$settings['water_max_duration'],
     ], (int)$user['user_id']);
 
     log_activity('MANUAL_WATER', sprintf(
-        'Manual water refill (target %.1f cm) requested on %s.',
-        $target, $device['device_name']
+        'Manual water refill requested on %s.', $device['device_name']
     ), (int)$user['user_id']);
 
     return api_ok([
-        'command_id'    => $commandId,
-        'action'        => 'start',
-        'target_level'  => $target,
-        'current_level' => $current,
-        'expected_rise' => round($target - $current, 2),
-        'max_duration'  => (int)$settings['water_max_duration'],
-    ], sprintf('Refill command sent. The device will raise the level by about %.1f cm.', $target - $current));
+        'command_id'   => $commandId,
+        'action'       => 'start',
+        'max_duration' => (int)$settings['water_max_duration'],
+    ], 'Refill command sent. The pump runs until the tank is full.');
 });

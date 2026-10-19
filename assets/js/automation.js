@@ -15,26 +15,26 @@
 
     const spec = kind === 'feed'
         ? {
-            readEndpoint: 'api/feed/read.php',
+            readEndpoint: null,
             actEndpoint: 'api/feed/dispense.php',
-            targetField: 'target_weight',
-            unit: PG.fmt.weight,
-            unitName: 'grams',
+            targetField: 'duration_sec',
+            unit: function (n) { return n + ' s'; },
+            unitName: 'seconds',
             barClass: 'feed',
-            noun: 'feed dispensing',
-            actuator: 'auger',
-            startVerb: 'Dispense feed',
+            noun: 'feeding',
+            actuator: 'feeder',
+            startVerb: 'Run feeder',
             confirmVariant: 'warning'
         }
         : {
             readEndpoint: 'api/water/read.php',
             actEndpoint: 'api/water/dispense.php',
-            targetField: 'target_level',
+            targetField: null,
             unit: PG.fmt.cm,
             unitName: 'centimetres',
             barClass: 'water',
             noun: 'water refill',
-            actuator: 'solenoid valve',
+            actuator: 'water pump',
             startVerb: 'Start refill',
             confirmVariant: 'primary'
         };
@@ -46,6 +46,24 @@
     // -----------------------------------------------------------------
     // Painting
     // -----------------------------------------------------------------
+    /** Feed control: no level sensor, only the feeder and controller state. */
+    function paintFeeder(commands) {
+        const d = commands.device;
+        state.device = d;
+        PG.setText('motorStatus', d.online ? PG.fmt.label(d.motor_status) : 'Unknown');
+        PG.setText('deviceStatus', d.online ? 'Online' : 'Offline');
+        PG.setText('infoMax', (d.feed_max_duration || '--') + ' s');
+        const pill = document.getElementById('statusPill');
+        const running = d.online && d.motor_status === 'running';
+        if (pill) pill.className = 'pg-pill ' + (!d.online ? 'unknown' : running ? 'info' : 'normal');
+        PG.setText('statusText', !d.online ? 'Offline' : running ? 'Running' : 'Idle');
+
+        const warn = document.getElementById('offlineWarning');
+        if (warn) warn.classList.toggle('d-none', d.online);
+        const startBtn = document.getElementById('dispenseBtn');
+        if (startBtn) startBtn.disabled = !d.online;
+    }
+
     function paint(data) {
         const c = data.current;
         const d = data.device;
@@ -55,7 +73,7 @@
         PG.setText('mainReading', kind === 'feed' ? c.weight_display : c.level_display);
         PG.setText('mainPercent', PG.fmt.percent(c.percentage));
         PG.setText('infoCapacity', spec.unit(c.capacity));
-        PG.setText('infoTarget', spec.unit(c.target));
+        PG.setText('infoTarget', spec.unit(c.threshold));
         if (kind === 'water') PG.setText('mainLiters', PG.fmt.liters(c.liters));
 
         const actuator = kind === 'feed' ? d.motor_status : d.solenoid_status;
@@ -84,11 +102,7 @@
         if (startBtn) startBtn.disabled = !d.online;
 
         // Seed the target field once, with the configured refill target.
-        const input = document.getElementById('targetWeight');
-        if (input && input.value === '') {
-            input.value = c.target;
-            input.max = c.capacity;
-        }
+
     }
 
     function paintCommands(data) {
@@ -109,10 +123,10 @@
         body.innerHTML = rows.map(function (c) {
             let detail = '--';
             if (c.payload) {
-                if (c.payload.target_weight !== undefined) {
-                    detail = 'Target ' + PG.fmt.weight(c.payload.target_weight);
-                } else if (c.payload.target_level !== undefined) {
-                    detail = 'Target ' + PG.fmt.cm(c.payload.target_level);
+                if (c.payload.duration_sec !== undefined) {
+                    detail = 'Run ' + c.payload.duration_sec + ' s';
+                } else if (c.command === 'refill_water') {
+                    detail = 'Until full';
                 }
             }
             return '<tr>' +
@@ -130,10 +144,12 @@
 
     async function load() {
         const [reading, commands] = await Promise.all([
-            PG.api(spec.readEndpoint, { params: { device_id: deviceId, limit: 1, hours: 1 } }),
+            spec.readEndpoint
+                ? PG.api(spec.readEndpoint, { params: { device_id: deviceId, limit: 1, hours: 1 } })
+                : Promise.resolve(null),
             PG.api('api/automation/commands.php', { params: { device_id: deviceId } })
         ]);
-        paint(reading);
+        if (reading) paint(reading); else paintFeeder(commands);
         paintCommands(commands);
     }
 
@@ -152,42 +168,32 @@
         const btn = document.getElementById('dispenseBtn');
         showFieldError('');
 
-        const target = parseFloat(input.value);
+        const target = kind === 'feed' ? parseFloat(input.value) : null;
         const c = state.current;
 
-        // Client-side validation mirrors the server rules so obvious mistakes
-        // are caught before a request is made. The server re-checks regardless.
-        if (isNaN(target)) {
-            showFieldError('Enter a target in ' + spec.unitName + '.');
-            input.focus();
-            return;
+        // Client-side validation mirrors the server rules; the server re-checks.
+        if (kind === 'feed') {
+            if (isNaN(target) || target <= 0) {
+                showFieldError('Enter how many seconds to run the feeder.');
+                input.focus();
+                return;
+            }
+            const max = state.device && state.device.feed_max_duration;
+            if (max && target > max) {
+                showFieldError('The feeder cannot run longer than ' + max + ' s per run.');
+                input.focus();
+                return;
+            }
         }
-        if (target <= 0) {
-            showFieldError('The target must be greater than zero.');
-            input.focus();
-            return;
-        }
-        if (c && target > c.capacity) {
-            showFieldError('The target cannot exceed the ' + spec.unit(c.capacity) + ' capacity.');
-            input.focus();
-            return;
-        }
-        const currentValue = c ? (kind === 'feed' ? c.weight : c.level) : 0;
-        if (c && target <= currentValue) {
-            showFieldError('The target must be above the current level of ' + spec.unit(currentValue) + '.');
-            input.focus();
-            return;
-        }
-
-        const willAdd = c ? spec.unit(target - currentValue) : spec.unit(target);
 
         const ok = await PG.confirm({
             title: 'Confirm manual ' + spec.noun,
             message: 'Are you sure you want to manually ' +
                 (kind === 'feed' ? 'dispense feed' : 'refill the tank') + '?',
-            detail: 'This will run the ' + spec.actuator + ' until the level reaches ' +
-                spec.unit(target) + ' — about ' + willAdd + ' will be added. ' +
-                'The device stops automatically at the target or at the safety timeout.',
+            detail: kind === 'feed'
+                ? 'This will run the feeder for ' + spec.unit(target) + ' and then stop it automatically.'
+                : 'This will run the water pump until the tank is full. The device stops it ' +
+                  'automatically when the sensor reads full or at the safety timeout.',
             confirmText: spec.startVerb,
             variant: spec.confirmVariant
         });
@@ -196,7 +202,7 @@
         const done = PG.busy(btn, 'Sending command');
         try {
             const body = { device_id: deviceId, action: 'start' };
-            body[spec.targetField] = target;
+            if (spec.targetField) body[spec.targetField] = target;
 
             const res = await PG.api(spec.actEndpoint, { method: 'POST', body: body });
             PG.toast('Command queued. The controller will act on it within a few seconds.', 'success');
@@ -243,7 +249,7 @@
         const ok = await PG.confirm({
             title: 'Emergency stop',
             message: 'Stop all feeding and watering on this device immediately?',
-            detail: 'The auger and valve stop, and automatic feeding and watering are ' +
+            detail: 'The feeder and pump stop, and automatic feeding and watering are ' +
                 'switched OFF until you re-enable them in Settings. The birds will not be ' +
                 'fed or watered automatically until you do.',
             confirmText: 'Emergency stop',
@@ -286,17 +292,5 @@
 
         const emergency = document.getElementById('emergencyBtn');
         if (emergency) emergency.addEventListener('click', emergencyStop);
-
-        // Quick-fill presets
-        document.querySelectorAll('[data-preset]').forEach(function (b) {
-            b.addEventListener('click', function () {
-                if (!state.current) return;
-                const input = document.getElementById('targetWeight');
-                input.value = this.dataset.preset === 'full'
-                    ? state.current.capacity
-                    : state.current.target;
-                showFieldError('');
-            });
-        });
     });
 })();

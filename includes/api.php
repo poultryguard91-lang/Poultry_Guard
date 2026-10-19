@@ -220,7 +220,6 @@ function touch_device(int $deviceId, array $extra = []): void
         'firmware_version'    => PDO::PARAM_STR,
         'ip_address'          => PDO::PARAM_STR,
         'wifi_rssi'           => PDO::PARAM_INT,
-        'feed_sensor_status'  => PDO::PARAM_STR,
         'water_sensor_status' => PDO::PARAM_STR,
         'motor_status'        => PDO::PARAM_STR,
         'solenoid_status'     => PDO::PARAM_STR,

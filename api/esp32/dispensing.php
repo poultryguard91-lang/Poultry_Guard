@@ -25,7 +25,7 @@ api_run(function (array $in): ApiResult {
 
     if ($type === 'feed') {
         $id = record_feed_dispensing($deviceId, $in);
-        // The auger has stopped by the time this report arrives.
+        // The feeder has stopped by the time this report arrives.
         touch_device($deviceId, ['motor_status' => 'idle']);
         $message = 'Feed dispensing record saved successfully';
     } else {

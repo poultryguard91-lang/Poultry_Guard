@@ -34,8 +34,6 @@ $NAV = [
     [
         'section' => 'Monitoring',
         'items' => [
-            ['key' => 'monitoring.feed', 'label' => 'Feed', 'path' => 'monitoring/feed.php',
-             'perm' => 'monitoring.view', 'icon' => '&#127806;'],
             ['key' => 'monitoring.water', 'label' => 'Water', 'path' => 'monitoring/water.php',
              'perm' => 'monitoring.view', 'icon' => '&#128167;'],
         ],
@@ -52,13 +50,9 @@ $NAV = [
     [
         'section' => 'Reports',
         'items' => [
-            ['key' => 'reports.feed', 'label' => 'Feed', 'path' => 'reports/feed.php',
-             'perm' => 'reports.view', 'icon' => '&#128202;'],
             ['key' => 'reports.water', 'label' => 'Water', 'path' => 'reports/water.php',
              'perm' => 'reports.view', 'icon' => '&#128202;'],
             ['key' => 'reports.alerts', 'label' => 'System', 'path' => 'reports/alerts.php',
-             'perm' => 'reports.view', 'icon' => '&#128202;'],
-            ['key' => 'reports.productivity', 'label' => 'Productivity (FCR)', 'path' => 'reports/productivity.php',
              'perm' => 'reports.view', 'icon' => '&#128202;'],
         ],
     ],
@@ -69,8 +63,6 @@ $NAV = [
              'perm' => 'alerts.view', 'icon' => '&#128276;', 'badge' => $UNREAD_ALERTS],
             ['key' => 'devices', 'label' => 'Devices', 'path' => 'devices/',
              'perm' => 'devices.view', 'icon' => '&#128225;'],
-            ['key' => 'sensors.calibration', 'label' => 'Calibration', 'path' => 'sensors/calibration.php',
-             'perm' => 'sensors.calibrate', 'icon' => '&#128207;'],
             ['key' => 'settings', 'label' => 'Settings', 'path' => 'settings/',
              'perm' => 'settings.view', 'icon' => '&#9881;'],
             ['key' => 'users', 'label' => 'Users', 'path' => 'users/',

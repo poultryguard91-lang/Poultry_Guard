@@ -24,11 +24,11 @@
     // Chart setup
     // -----------------------------------------------------------------
     function initCharts() {
-        charts.feedLevel = PG.charts.levelChart('feedLevelChart', {
+        charts.climate = PG.charts.levelChart('climateChart', {
             color: PG.charts.COLORS.feed,
-            label: 'Feed weight',
-            unit: PG.fmt.weight,
-            thresholdLabel: 'Refill threshold'
+            label: 'Temperature',
+            unit: function (n) { return Number(n).toFixed(1) + ' °C'; },
+            thresholdLabel: 'Heat warning'
         });
 
         charts.waterLevel = PG.charts.levelChart('waterLevelChart', {
@@ -38,10 +38,9 @@
             thresholdLabel: 'Refill threshold'
         });
 
-        charts.feedConsumption = PG.charts.consumptionChart('feedConsumptionChart', {
-            unit: PG.fmt.weight,
-            primaryLabel: 'Consumed by birds',
-            secondaryLabel: 'Dispensed by auger',
+        charts.feedRuns = PG.charts.consumptionChart('feedRunsChart', {
+            unit: function (n) { return Number(n).toFixed(0) + ' s'; },
+            primaryLabel: 'Feeder run time',
             primaryColor: PG.charts.COLORS.feed
         });
 
@@ -81,39 +80,14 @@
     }
 
     function paintFeed(feed, today) {
-        const pct = feed.percentage;
+        PG.setText('feedLastRun', feed.last_run ? feed.last_run_ago : 'Never');
+        PG.setText('feedLastSeconds', feed.last_run_seconds === null ? '--' : feed.last_run_seconds + ' s');
+        PG.setText('feedMaxDuration', feed.max_duration + ' s');
+        PG.setText('feedToday', today.feed_runs + ' run(s), ' + today.feed_seconds + ' s');
 
-        PG.setText('tileFeedValue', feed.weight_display);
-        PG.setText('tileFeedSub', pct === null ? 'No reading yet' : PG.fmt.percent(pct) + ' of capacity');
-
-        PG.setText('feedWeight', feed.weight_display);
-        PG.setText('feedPercent', pct === null ? '' : '(' + PG.fmt.percent(pct) + ')');
-        PG.setText('feedCapacity', PG.fmt.weight(feed.capacity));
-        PG.setText('feedUpdated', feed.reading_ago);
-        PG.setText('feedThreshold', PG.fmt.weight(feed.threshold) + ' (' + PG.fmt.percent(feed.threshold_percent) + ')');
-        PG.setText('feedTarget', PG.fmt.weight(feed.target));
-        PG.setText('feedAuto', feed.auto ? 'Enabled' : 'Disabled');
-        PG.setText('feedToday', today.feed_consumed_display);
-
-        PG.setText('feedLastDispensed', feed.last_dispensed
-            ? feed.last_dispensed_ago + (feed.last_dispensed_amount ? ' (' + feed.last_dispensed_amount + ')' : '')
-            : 'Never');
-
-        paintPill('feedStatusPill', 'feedStatusText', feed.status, feed.status);
-
-        // Bar colour follows the status, so a low hopper is obvious at a glance.
-        const bar = document.getElementById('feedBar');
-        if (bar) {
-            const w = pct === null ? 0 : Math.max(0, Math.min(100, pct));
-            bar.style.width = w + '%';
-            bar.className = 'pg-level-fill ' +
-                (feed.status === 'CRITICAL' ? 'critical' : feed.status === 'LOW' ? 'low' : 'feed');
-            bar.textContent = w > 12 ? PG.fmt.percent(pct) : '';
-        }
-        const mark = document.getElementById('feedThresholdMark');
-        if (mark) mark.style.left = Math.max(0, Math.min(100, feed.threshold_percent)) + '%';
-
-        PG.charts.setThreshold(charts.feedLevel, feed.threshold);
+        const pill = document.getElementById('feedStatusPill');
+        if (pill) pill.className = 'pg-pill ' + (feed.running ? 'info' : 'normal');
+        PG.setText('feedStatusText', feed.running ? 'Running' : 'Idle');
     }
 
     function paintWater(water, today) {
@@ -150,13 +124,27 @@
         PG.charts.setThreshold(charts.waterLevel, water.threshold);
     }
 
+    function paintClimate(c) {
+        if (!c) return;
+        PG.setText('tileTempValue', c.temperature === null ? '-- °C' : c.temperature.toFixed(1) + ' °C');
+        PG.setText('tileTempSub', c.humidity === null ? 'No reading yet' : Math.round(c.humidity) + ' % humidity · ' + c.heat_level.toLowerCase());
+        PG.charts.setThreshold(charts.climate, c.warn_c);
+        PG.setText('climateTemp', c.temperature === null ? '--' : c.temperature.toFixed(1) + ' °C');
+        PG.setText('climateHumidity', c.humidity === null ? '--' : Math.round(c.humidity) + ' %');
+        PG.setText('climateUpdated', c.reading_ago);
+        PG.setText('climateLimits', 'Warning ' + c.warn_c + ' °C · Danger ' + c.danger_c + ' °C');
+        const map = { NORMAL: 'normal', WARNING: 'low', DANGER: 'critical' };
+        const pill = document.getElementById('climateStatusPill');
+        if (pill) pill.className = 'pg-pill ' + (map[c.heat_level] || 'unknown');
+        PG.setText('climateStatusText', c.heat_level === 'UNKNOWN' ? '--' : c.heat_level);
+    }
+
     function paintDevice(device) {
         PG.setText('tileDeviceValue', device.online ? 'Online' : 'Offline');
         PG.setText('tileDeviceSub', 'Last contact ' + device.last_seen_ago);
 
         paintStat('statEsp32', device.esp32_status, ['online']);
         paintStat('statInternet', device.internet_status, ['connected']);
-        paintStat('statFeedSensor', device.feed_sensor, ['ok']);
         paintStat('statWaterSensor', device.water_sensor, ['ok']);
         paintStat('statMotor', device.motor_status, ['idle']);
         paintStat('statSolenoid', device.solenoid_status, ['idle']);
@@ -226,22 +214,19 @@
     }
 
     function paintCharts(c) {
-        // --- level trends ---
-        const feedLabels = c.feed_level.map(function (p) { return PG.fmt.time(p.time); });
-        PG.charts.update(charts.feedLevel, feedLabels, [c.feed_level.map(function (p) { return p.value; })]);
-        PG.charts.emptyState('feedLevelChart', c.feed_level.length ? '' : 'No feed readings in this period yet.');
+        // --- trends ---
+        const climateLabels = c.climate.map(function (p) { return PG.fmt.time(p.time); });
+        PG.charts.update(charts.climate, climateLabels, [c.climate.map(function (p) { return p.temperature; })]);
+        PG.charts.emptyState('climateChart', c.climate.length ? '' : 'No temperature readings in this period yet.');
 
         const waterLabels = c.water_level.map(function (p) { return PG.fmt.time(p.time); });
         PG.charts.update(charts.waterLevel, waterLabels, [c.water_level.map(function (p) { return p.value; })]);
         PG.charts.emptyState('waterLevelChart', c.water_level.length ? '' : 'No water readings in this period yet.');
 
         // --- daily consumption ---
-        const fLabels = c.feed_consumption.map(function (p) { return PG.fmt.date(p.period); });
-        PG.charts.update(charts.feedConsumption, fLabels, [
-            c.feed_consumption.map(function (p) { return p.consumed; }),
-            c.feed_consumption.map(function (p) { return p.dispensed; })
-        ]);
-        PG.charts.emptyState('feedConsumptionChart', c.feed_consumption.length ? '' : 'Not enough history yet.');
+        const fLabels = c.feed_runs.map(function (p) { return PG.fmt.date(p.period); });
+        PG.charts.update(charts.feedRuns, fLabels, [c.feed_runs.map(function (p) { return p.seconds; })]);
+        PG.charts.emptyState('feedRunsChart', c.feed_runs.length ? '' : 'Not enough history yet.');
 
         const wLabels = c.water_consumption.map(function (p) { return PG.fmt.date(p.period); });
         PG.charts.update(charts.waterConsumption, wLabels, [
@@ -264,6 +249,7 @@
 
         paintFeed(data.feed, data.today);
         paintWater(data.water, data.today);
+        paintClimate(data.climate);
         paintDevice(data.device);
         paintAlerts(data.alerts);
 

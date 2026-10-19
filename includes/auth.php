@@ -23,7 +23,7 @@ class AuthenticationException extends RuntimeException
  * This mirrors the roles defined in the system specification:
  *   - Farm Owner  oversees the business: monitoring, reporting, devices,
  *                 users, alert/notification policy.
- *   - Farm Staff  operates the equipment: thresholds, calibration and the
+ *   - Farm Staff  operates the equipment: thresholds and the
  *                 manual feed/water controls.
  * Both roles may view dashboards, monitoring, alerts and device status.
  */
@@ -35,13 +35,11 @@ const ROLE_PERMISSIONS = [
         'alerts.manage',
         'devices.view',
         'devices.manage',
-        'sensors.calibrate',
         'settings.view',
         'settings.alerts',
         'reports.view',
         'users.manage',
         'logs.view',
-        'production.manage',
     ],
     ROLE_STAFF => [
         'dashboard.view',
@@ -49,7 +47,6 @@ const ROLE_PERMISSIONS = [
         'alerts.view',
         'alerts.manage',
         'devices.view',
-        'sensors.calibrate',
         'settings.view',
         'settings.thresholds',
         'automation.control',

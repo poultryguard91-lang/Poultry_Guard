@@ -4,7 +4,7 @@
  *
  * Cuts both actuators at once and turns off the automation flags, so the
  * device will not immediately restart what it was doing. This is the control
- * an operator reaches for when something is going wrong at the hopper.
+ * an operator reaches for when something is going wrong at the house.
  *
  * Unlike the other manual controls this is accepted even while the device is
  * offline: the command waits in the queue and the automation flags are already
@@ -67,7 +67,6 @@ api_run(function (array $in): ApiResult {
 
     return api_ok([
         'command_id' => $commandId,
-        'auto_feed'  => false,
         'auto_water' => false,
-    ], 'Emergency stop sent. Automatic feeding and watering have been switched off — re-enable them in Settings when it is safe.');
+    ], 'Emergency stop sent. Automatic watering has been switched off — re-enable them in Settings when it is safe.');
 });

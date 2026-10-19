@@ -58,10 +58,10 @@
               '<div class="row g-2 mb-3">' +
                 '<div class="col-6">' +
                   '<div class="border rounded p-2 text-center">' +
-                    '<div class="pg-metric-label">Feed</div>' +
-                    '<div class="fw-bold">' + PG.escapeHtml(PG.fmt.weight(d.feed_weight)) + '</div>' +
+                    '<div class="pg-metric-label">Climate</div>' +
+                    '<div class="fw-bold">' + (d.temperature === null ? '--' : d.temperature.toFixed(1) + ' °C') + '</div>' +
                     '<div class="pg-muted" style="font-size:.72rem">' +
-                      PG.escapeHtml(PG.fmt.percent(d.feed_percentage)) + '</div>' +
+                      (d.humidity === null ? '--' : Math.round(d.humidity) + ' % humidity') + '</div>' +
                   '</div>' +
                 '</div>' +
                 '<div class="col-6">' +
@@ -75,10 +75,9 @@
               '</div>' +
 
               '<ul class="list-unstyled mb-3">' +
-                statusRow('Load cell (feed sensor)', d.feed_sensor, ['ok']) +
-                statusRow('Ultrasonic (water sensor)', d.water_sensor, ['ok']) +
-                statusRow('Auger motor', d.motor_status, ['idle']) +
-                statusRow('Solenoid valve', d.solenoid_status, ['idle']) +
+                statusRow('Water level sensor', d.water_sensor, ['ok']) +
+                statusRow('Feeder motor', d.motor_status, ['idle']) +
+                statusRow('Water pump', d.solenoid_status, ['idle']) +
               '</ul>' +
 
               '<table class="table table-sm pg-table mb-0"><tbody>' +
@@ -88,10 +87,9 @@
                 row('Firmware', PG.escapeHtml(d.firmware_version || 'Not reported')) +
                 row('IP address', '<span class="pg-mono">' + PG.escapeHtml(d.ip_address || '--') + '</span>') +
                 row('Wi-Fi signal', PG.escapeHtml(wifi)) +
-                row('Automation', (d.auto_feed ? 'Feed on' : 'Feed off') + ' · ' +
-                                  (d.auto_water ? 'Water on' : 'Water off')) +
+                row('Automatic watering', d.auto_water ? 'On' : 'Off') +
                 row('Offline after', d.offline_timeout + ' s without contact') +
-                row('Last 24 h', d.activity.feed_readings + ' feed / ' +
+                row('Last 24 h', d.activity.climate_readings + ' climate / ' +
                     d.activity.water_readings + ' water readings, ' +
                     (d.activity.feed_events + d.activity.water_events) + ' dispensing events') +
                 row('Queued commands', String(d.activity.queued_commands)) +

@@ -74,9 +74,9 @@ api_run(function (array $in): ApiResult {
     // named placeholder to several occurrences.
     $actSt = db()->prepare(
         'SELECT
-            (SELECT COUNT(*) FROM feed_readings  WHERE device_id = ? AND `timestamp` >= ? AND `timestamp` < ?) AS feed_readings,
+            (SELECT COUNT(*) FROM climate_readings  WHERE device_id = ? AND `timestamp` >= ? AND `timestamp` < ?) AS climate_readings,
             (SELECT COUNT(*) FROM water_readings WHERE device_id = ? AND `timestamp` >= ? AND `timestamp` < ?) AS water_readings,
-            (SELECT COUNT(*) FROM feed_readings  WHERE device_id = ? AND `timestamp` >= ? AND `timestamp` < ? AND source = \'offline_sync\') AS feed_offline,
+            (SELECT COUNT(*) FROM climate_readings  WHERE device_id = ? AND `timestamp` >= ? AND `timestamp` < ? AND source = \'offline_sync\') AS climate_offline,
             (SELECT COUNT(*) FROM water_readings WHERE device_id = ? AND `timestamp` >= ? AND `timestamp` < ? AND source = \'offline_sync\') AS water_offline'
     );
     $trip = [$deviceId, $range['from'], $range['to']];
@@ -88,7 +88,7 @@ api_run(function (array $in): ApiResult {
     $seconds  = min($seconds, max(1, time() - strtotime($range['from'])));
     $interval = max(1, (int)$settings['reading_interval']);
     $expected = (int)floor($seconds / $interval);
-    $actual   = (int)($activity['feed_readings'] ?? 0);
+    $actual   = (int)($activity['climate_readings'] ?? 0);
     $uptime   = $expected > 0 ? min(100.0, round($actual / $expected * 100, 2)) : 0.0;
 
     // ------------------------------------------------------------------
@@ -153,11 +153,11 @@ api_run(function (array $in): ApiResult {
             'last_seen'         => $device['last_seen'],
         ],
         'sensor_activity' => [
-            'feed_readings'  => (int)($activity['feed_readings'] ?? 0),
+            'climate_readings'  => (int)($activity['climate_readings'] ?? 0),
             'water_readings' => (int)($activity['water_readings'] ?? 0),
             // Rows that arrived through the offline buffer show how much of the
             // period the controller spent running without a network.
-            'feed_offline_sync'  => (int)($activity['feed_offline'] ?? 0),
+            'climate_offline_sync'  => (int)($activity['climate_offline'] ?? 0),
             'water_offline_sync' => (int)($activity['water_offline'] ?? 0),
         ],
         'actions'      => $actions,

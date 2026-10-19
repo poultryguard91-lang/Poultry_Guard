@@ -28,15 +28,17 @@ api_run(function (array $in): ApiResult {
         $settings = get_settings($deviceId);
         $online   = device_is_online($d['last_seen'], (int)$settings['offline_timeout']);
 
-        $feed  = latest_feed_reading($deviceId);
         $water = latest_water_reading($deviceId);
+        $cl = db()->prepare('SELECT temperature_c, humidity_pct FROM climate_readings WHERE device_id = ? ORDER BY `timestamp` DESC LIMIT 1');
+        $cl->execute([$deviceId]);
+        $climate = $cl->fetch() ?: null;
 
         // How busy the device has been in the last day. Positional placeholders
         // are used because a native prepared statement cannot bind one named
         // placeholder to several occurrences.
         $act = db()->prepare(
             'SELECT
-                (SELECT COUNT(*) FROM feed_readings    WHERE device_id = ? AND `timestamp` >= DATE_SUB(NOW(), INTERVAL 1 DAY)) AS feed_readings,
+                (SELECT COUNT(*) FROM climate_readings WHERE device_id = ? AND `timestamp` >= DATE_SUB(NOW(), INTERVAL 1 DAY)) AS climate_readings,
                 (SELECT COUNT(*) FROM water_readings   WHERE device_id = ? AND `timestamp` >= DATE_SUB(NOW(), INTERVAL 1 DAY)) AS water_readings,
                 (SELECT COUNT(*) FROM feed_dispensing  WHERE device_id = ? AND `timestamp` >= DATE_SUB(NOW(), INTERVAL 1 DAY)) AS feed_events,
                 (SELECT COUNT(*) FROM water_dispensing WHERE device_id = ? AND `timestamp` >= DATE_SUB(NOW(), INTERVAL 1 DAY)) AS water_events,
@@ -60,15 +62,13 @@ api_run(function (array $in): ApiResult {
             'ip_address'       => $d['ip_address'],
             'wifi_rssi'        => $d['wifi_rssi'] !== null ? (int)$d['wifi_rssi'] : null,
             'wifi_quality'     => rssi_quality($d['wifi_rssi'] !== null ? (int)$d['wifi_rssi'] : null),
-            'feed_sensor'      => $online ? $d['feed_sensor_status']  : 'unknown',
             'water_sensor'     => $online ? $d['water_sensor_status'] : 'unknown',
             'motor_status'     => $online ? $d['motor_status']    : 'unknown',
             'solenoid_status'  => $online ? $d['solenoid_status'] : 'unknown',
-            'auto_feed'        => (bool)$settings['auto_feed'],
             'auto_water'       => (bool)$settings['auto_water'],
             'offline_timeout'  => (int)$settings['offline_timeout'],
-            'feed_weight'      => $feed  ? (float)$feed['feed_weight'] : null,
-            'feed_percentage'  => $feed  ? (float)$feed['feed_percentage'] : null,
+            'temperature'      => $climate ? (float)$climate['temperature_c'] : null,
+            'humidity'         => $climate ? (float)$climate['humidity_pct'] : null,
             'water_level'      => $water ? (float)$water['water_level'] : null,
             'water_percentage' => $water ? (float)$water['water_percentage'] : null,
             'activity'         => array_map('intval', $activity),

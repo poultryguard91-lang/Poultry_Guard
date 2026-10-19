@@ -21,13 +21,11 @@ api_require_method('POST');
 /** Fields that belong to each permission group. */
 const SETTING_GROUPS = [
     'thresholds' => [
-        'feed_capacity', 'feed_threshold', 'target_feed', 'feed_max_duration',
-        'feed_tolerance', 'auto_feed',
-        'water_capacity', 'water_capacity_liters', 'sensor_offset_cm',
+        'feed_max_duration',
+        'water_capacity', 'water_capacity_liters',
         'water_threshold', 'water_target', 'water_max_duration', 'auto_water',
     ],
     'alerts' => [
-        'feed_low_percent', 'feed_critical_percent',
         'water_low_percent', 'water_critical_percent',
         'offline_timeout', 'reading_interval', 'notify_in_app', 'notify_email',
     ],
@@ -73,42 +71,25 @@ api_run(function (array $in): ApiResult {
     $new = [];
 
     if (isset($touched['thresholds'])) {
-        $new['feed_capacity']     = v_float($in['feed_capacity']     ?? null, 'Maximum feed capacity', 100, 500000, (float)$current['feed_capacity']);
-        $new['feed_threshold']    = v_float($in['feed_threshold']    ?? null, 'Minimum feed threshold', 0, 500000, (float)$current['feed_threshold']);
-        $new['target_feed']       = v_float($in['target_feed']       ?? null, 'Target feed quantity', 0, 500000, (float)$current['target_feed']);
-        $new['feed_max_duration'] = v_int($in['feed_max_duration']   ?? null, 'Feed dispensing duration', 1, 3600, (int)$current['feed_max_duration']);
-        $new['feed_tolerance']    = v_float($in['feed_tolerance']    ?? null, 'Feed tolerance', 0.1, 1000, (float)$current['feed_tolerance']);
-        $new['auto_feed']         = to_bool($in['auto_feed'] ?? $current['auto_feed']);
+        $new['feed_max_duration'] = v_int($in['feed_max_duration']   ?? null, 'Maximum feeder run time', 1, 3600, (int)$current['feed_max_duration']);
 
         $new['water_capacity']        = v_float($in['water_capacity']        ?? null, 'Maximum water capacity', 1, 400, (float)$current['water_capacity']);
         $new['water_capacity_liters'] = v_float($in['water_capacity_liters'] ?? null, 'Tank volume', 1, 100000, (float)$current['water_capacity_liters']);
-        $new['sensor_offset_cm']      = v_float($in['sensor_offset_cm']      ?? null, 'Sensor offset', 0, 400, (float)$current['sensor_offset_cm']);
         $new['water_threshold']       = v_float($in['water_threshold']       ?? null, 'Minimum water threshold', 0, 400, (float)$current['water_threshold']);
         $new['water_target']          = v_float($in['water_target']          ?? null, 'Target water level', 0, 400, (float)$current['water_target']);
         $new['water_max_duration']    = v_int($in['water_max_duration']      ?? null, 'Maximum refill duration', 1, 7200, (int)$current['water_max_duration']);
         $new['auto_water']            = to_bool($in['auto_water'] ?? $current['auto_water']);
 
         // --- cross-field rules ---
-        if ($new['feed_threshold'] >= $new['target_feed']) {
-            throw new ValidationException('The feed threshold must be lower than the target feed quantity, otherwise dispensing would never stop.');
-        }
-        if ($new['target_feed'] > $new['feed_capacity']) {
-            throw new ValidationException('The target feed quantity cannot exceed the hopper capacity.');
-        }
         if ($new['water_threshold'] >= $new['water_target']) {
-            throw new ValidationException('The water threshold must be lower than the target water level, otherwise the valve would never close.');
+            throw new ValidationException('The water threshold must be lower than the target water level, otherwise the pump would never stop.');
         }
         if ($new['water_target'] > $new['water_capacity']) {
             throw new ValidationException('The target water level cannot exceed the tank depth.');
         }
-        if ($new['water_capacity'] + $new['sensor_offset_cm'] > 400) {
-            throw new ValidationException('Tank depth plus sensor offset exceeds the 400 cm range of the HC-SR04 sensor.');
-        }
     }
 
     if (isset($touched['alerts'])) {
-        $new['feed_low_percent']       = v_float($in['feed_low_percent']       ?? null, 'Low feed threshold', 0, 100, (float)$current['feed_low_percent']);
-        $new['feed_critical_percent']  = v_float($in['feed_critical_percent']  ?? null, 'Critical feed threshold', 0, 100, (float)$current['feed_critical_percent']);
         $new['water_low_percent']      = v_float($in['water_low_percent']      ?? null, 'Low water threshold', 0, 100, (float)$current['water_low_percent']);
         $new['water_critical_percent'] = v_float($in['water_critical_percent'] ?? null, 'Critical water threshold', 0, 100, (float)$current['water_critical_percent']);
         $new['offline_timeout']        = v_int($in['offline_timeout']          ?? null, 'Device offline timeout', 30, 86400, (int)$current['offline_timeout']);
@@ -116,9 +97,6 @@ api_run(function (array $in): ApiResult {
         $new['notify_in_app']          = to_bool($in['notify_in_app'] ?? $current['notify_in_app']);
         $new['notify_email']           = to_bool($in['notify_email']  ?? $current['notify_email']);
 
-        if ($new['feed_critical_percent'] >= $new['feed_low_percent']) {
-            throw new ValidationException('The critical feed threshold must be lower than the low feed threshold.');
-        }
         if ($new['water_critical_percent'] >= $new['water_low_percent']) {
             throw new ValidationException('The critical water threshold must be lower than the low water threshold.');
         }

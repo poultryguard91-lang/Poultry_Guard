@@ -27,6 +27,56 @@ function reading_timestamp(mixed $value): string
     return date('Y-m-d H:i:s');
 }
 
+/** Heat thresholds in degrees C; keep in step with TEMP_WARN / TEMP_DANGER in the firmware. */
+const CLIMATE_WARN_C   = 32.0;
+const CLIMATE_DANGER_C = 35.0;
+
+/**
+ * The water level strip / float switch has no distance to report, so the
+ * firmware sends a percentage. Convert it to the sensor-to-surface distance the
+ * rest of the system (tables, charts, reports) is built on.
+ */
+function distance_from_percentage(float $percentage, float $tankDepthCm, float $sensorOffsetCm): float
+{
+    $pct = max(0.0, min(100.0, $percentage));
+    return round($sensorOffsetCm + $tankDepthCm - ($pct / 100.0 * $tankDepthCm), 2);
+}
+
+/**
+ * Store a DHT11 sample and raise a heat alert when it is too hot.
+ *
+ * @return array<string,mixed>|null the stored values, or null when the sample was unusable.
+ */
+function record_climate(int $deviceId, mixed $temperature, mixed $humidity, string $source, string $timestamp, bool $alert = true): ?array
+{
+    if (!is_numeric($temperature) || !is_numeric($humidity)) {
+        return null;
+    }
+    $t = (float)$temperature;
+    $h = (float)$humidity;
+    // The DHT11 measures 0-50 C and 20-90 %RH; anything far outside is a wiring fault.
+    if ($t < -10 || $t > 70 || $h < 0 || $h > 100) {
+        return null;
+    }
+
+    $level = $t >= CLIMATE_DANGER_C ? 'danger' : ($t >= CLIMATE_WARN_C ? 'warning' : 'normal');
+
+    db()->prepare(
+        'INSERT INTO climate_readings (device_id, temperature_c, humidity_pct, heat_level, source, `timestamp`)
+         VALUES (?, ?, ?, ?, ?, ?)'
+    )->execute([$deviceId, round($t, 2), round($h, 2), $level, $source, $timestamp]);
+
+    if ($alert && $level === 'danger') {
+        create_alert($deviceId, 'abnormal_reading', 'CRITICAL',
+            sprintf('Heat danger: %.1f C in the house. Turn on fans, add shade and cool water.', $t));
+    } elseif ($alert && $level === 'warning') {
+        create_alert($deviceId, 'abnormal_reading', 'WARNING',
+            sprintf('Heat warning: %.1f C in the house. Chickens may start heat stress.', $t));
+    }
+
+    return ['temperature_c' => round($t, 2), 'humidity_pct' => round($h, 2), 'heat_level' => $level];
+}
+
 /**
  * The automation profile the firmware caches in NVS so it can keep feeding
  * and watering to the same rules with no network connection.
@@ -37,15 +87,9 @@ function reading_timestamp(mixed $value): string
 function device_config_payload(int $deviceId, ?array $settings = null): array
 {
     $settings ??= get_settings($deviceId);
-    $calib = get_calibration($deviceId);
 
     return [
-        'feed_capacity'      => (float)$settings['feed_capacity'],
-        'feed_threshold'     => (float)$settings['feed_threshold'],
-        'target_feed'        => (float)$settings['target_feed'],
         'feed_max_duration'  => (int)$settings['feed_max_duration'],
-        'feed_tolerance'     => (float)$settings['feed_tolerance'],
-        'auto_feed'          => (bool)$settings['auto_feed'],
         'water_capacity'     => (float)$settings['water_capacity'],
         'sensor_offset_cm'   => (float)$settings['sensor_offset_cm'],
         'water_threshold'    => (float)$settings['water_threshold'],
@@ -53,8 +97,6 @@ function device_config_payload(int $deviceId, ?array $settings = null): array
         'water_max_duration' => (int)$settings['water_max_duration'],
         'auto_water'         => (bool)$settings['auto_water'],
         'reading_interval'   => (int)$settings['reading_interval'],
-        'load_cell_factor'   => isset($calib['load_cell']) ? (float)$calib['load_cell']['calibration_factor'] : 1.0,
-        'load_cell_offset'   => isset($calib['load_cell']) ? (float)$calib['load_cell']['offset_value'] : 0.0,
         'settings_version'   => (int)strtotime((string)$settings['updated_at']),
     ];
 }
@@ -128,57 +170,46 @@ function queue_command(int $deviceId, string $command, ?array $payload, ?int $us
 }
 
 /**
- * Record a completed (or failed) feed dispensing event reported by the device.
+ * Record a completed (or failed) feeder run reported by the device.
+ *
+ * The feeder is timed (no load cell), so a run is described by how long the
+ * motor ran, not by weights.
  *
  * @return int the new dispensing_id
  */
 function record_feed_dispensing(int $deviceId, array $in): int
 {
     $settings = get_settings($deviceId);
-    $capacity = (float)$settings['feed_capacity'];
 
-    $start   = v_float($in['start_weight']  ?? null, 'Start weight',  0, $capacity * 1.5, 0.0);
-    $target  = v_float($in['target_weight'] ?? null, 'Target weight', 0, $capacity * 1.5, (float)$settings['target_feed']);
-    $actual  = isset($in['actual_weight']) && $in['actual_weight'] !== ''
-        ? v_float($in['actual_weight'], 'Actual weight', 0, $capacity * 1.5)
-        : null;
     $method  = v_enum($in['dispensing_method'] ?? 'automatic', 'Dispensing method', ['automatic', 'manual', 'offline'], 'automatic');
     $status  = v_enum($in['status'] ?? 'completed', 'Status', ['pending', 'running', 'completed', 'failed', 'aborted', 'timeout'], 'completed');
     $ms      = v_int($in['duration_ms'] ?? null, 'Duration', 0, 3600000, 0);
     $notes   = v_string($in['notes'] ?? null, 'Notes', 0, 255, '');
     $userId  = isset($in['user_id']) && is_numeric($in['user_id']) ? (int)$in['user_id'] : null;
 
-    $dispensed = $actual !== null ? round($actual - $start, 2) : null;
-
     $st = db()->prepare(
         'INSERT INTO feed_dispensing
-            (device_id, user_id, start_weight, target_weight, actual_weight, dispensed_amount,
-             dispensing_method, status, duration_ms, notes, `timestamp`)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            (device_id, user_id, dispensing_method, status, duration_ms, notes, `timestamp`)
+         VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
     $st->execute([
-        $deviceId, $userId, $start, $target, $actual, $dispensed,
-        $method, $status, $ms, $notes !== '' ? $notes : null,
+        $deviceId, $userId, $method, $status, $ms, $notes !== '' ? $notes : null,
         reading_timestamp($in['timestamp'] ?? null),
     ]);
     $id = (int)db()->lastInsertId();
 
-    // Turn hardware faults reported by the firmware into operator-visible alerts.
     if ($status === 'timeout') {
         create_alert($deviceId, 'dispensing_timeout', 'CRITICAL',
-            sprintf('Auger stopped by the %d s safety timeout before reaching the target weight.',
-                (int)$settings['feed_max_duration']), 300);
+            sprintf('Feeder motor stopped by the %d s safety timeout.', (int)$settings['feed_max_duration']), 300);
     } elseif ($status === 'failed') {
         create_alert($deviceId, 'motor_error', 'WARNING',
-            $notes !== '' ? $notes : 'Feed dispensing failed. Check the auger and load cell.', 300);
+            $notes !== '' ? $notes : 'Feeder run failed. Check the feeder motor and relay.', 300);
     } elseif ($status === 'completed') {
         create_alert($deviceId, 'info', 'INFO',
-            sprintf('%s feed dispensing completed: %s added in %.1f s.',
-                ucfirst($method), format_weight($dispensed ?? 0), $ms / 1000), 300);
+            sprintf('%s feeding completed: feeder ran %.1f s.', ucfirst($method), $ms / 1000), 300);
         log_activity(
             $method === 'manual' ? 'MANUAL_FEED' : 'AUTO_FEED',
-            sprintf('%s feed dispensing completed on device #%d (%s added).',
-                ucfirst($method), $deviceId, format_weight($dispensed ?? 0)),
+            sprintf('%s feeding completed on device #%d (feeder ran %.1f s).', ucfirst($method), $deviceId, $ms / 1000),
             $userId
         );
     }
@@ -196,7 +227,14 @@ function record_water_dispensing(int $deviceId, array $in): int
     $settings = get_settings($deviceId);
     $depth    = (float)$settings['water_capacity'];
 
-    $start  = v_float($in['starting_level'] ?? null, 'Starting level', 0, $depth * 1.5);
+    // A level strip / float switch reports percentages, not centimetres.
+    foreach (['starting' => 'starting_level', 'target' => 'target_level', 'ending' => 'ending_level'] as $k => $col) {
+        if (isset($in[$k . '_percentage']) && is_numeric($in[$k . '_percentage'])) {
+            $in[$col] = round(max(0.0, min(100.0, (float)$in[$k . '_percentage'])) / 100.0 * $depth, 2);
+        }
+    }
+
+    $start  = v_float($in['starting_level'] ?? null, 'Starting level', 0, $depth * 1.5, 0.0);
     $target = v_float($in['target_level']   ?? null, 'Target level',   0, $depth * 1.5, (float)$settings['water_target']);
     $end    = isset($in['ending_level']) && $in['ending_level'] !== ''
         ? v_float($in['ending_level'], 'Ending level', 0, $depth * 1.5)
@@ -222,11 +260,11 @@ function record_water_dispensing(int $deviceId, array $in): int
 
     if ($status === 'timeout') {
         create_alert($deviceId, 'dispensing_timeout', 'CRITICAL',
-            sprintf('Solenoid valve closed by the %d s safety timeout before reaching the target level.',
+            sprintf('Water pump stopped by the %d s safety timeout before reaching the target level.',
                 (int)$settings['water_max_duration']), 300);
     } elseif ($status === 'failed') {
         create_alert($deviceId, 'solenoid_error', 'WARNING',
-            $notes !== '' ? $notes : 'Water refill failed. Check the valve and supply pressure.', 300);
+            $notes !== '' ? $notes : 'Water refill failed. Check the pump and water supply.', 300);
     } elseif ($status === 'completed') {
         create_alert($deviceId, 'info', 'INFO',
             sprintf('%s water refill completed: %.1f cm to %.1f cm in %.1f s.',

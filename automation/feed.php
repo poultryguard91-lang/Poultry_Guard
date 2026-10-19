@@ -13,7 +13,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_page_auth('automation.control');
 
 $PAGE_TITLE    = 'Feed Control';
-$PAGE_SUBTITLE = 'Manually dispense feed or stop the auger.';
+$PAGE_SUBTITLE = 'Manually run the feeder or stop it.';
 $NAV_ACTIVE    = 'automation.feed';
 $PAGE_SCRIPTS  = [asset_url('assets/js/automation.js')];
 
@@ -29,10 +29,10 @@ window.PG_PAGE = { kind: 'feed' };
     <div>
         Commands are queued and picked up by the controller on its next check-in
         (usually within <?= (int)($DEVICE_SETTINGS['reading_interval'] ?? 30) ?> seconds).
-        The ESP32 performs the weighing and stops the auger itself, so a manual
-        dispense is subject to the same
-        <strong><?= (int)($DEVICE_SETTINGS['feed_max_duration'] ?? 60) ?>&nbsp;second</strong>
-        safety timeout as an automatic one.
+        The feeder is timed: the ESP32 runs the motor for the number of seconds you
+        choose and stops it itself, never longer than the
+        <strong><?= (int)($DEVICE_SETTINGS['feed_max_duration'] ?? 30) ?>&nbsp;second</strong>
+        safety limit.
     </div>
 </div>
 
@@ -41,28 +41,19 @@ window.PG_PAGE = { kind: 'feed' };
     <div class="col-lg-4">
         <div class="pg-card accent-feed h-100">
             <div class="pg-card-head">
-                <h2>Hopper right now</h2>
+                <h2>Feeder right now</h2>
                 <span class="pg-pill unknown" id="statusPill">
                     <span class="dot" aria-hidden="true"></span><span id="statusText">--</span>
                 </span>
             </div>
-            <div class="pg-card-body text-center">
-                <div class="pg-reading pg-skeleton d-inline-block" id="mainReading">--</div>
-                <div class="pg-muted small mt-1"><span id="mainPercent">--</span> of capacity</div>
-
-                <div class="pg-level mt-3">
-                    <div class="pg-level-fill feed" id="levelBar" style="width:0%"></div>
-                </div>
-
-                <div class="row g-2 small mt-3 text-start">
-                    <div class="col-6"><span class="pg-muted">Capacity</span>
-                        <div class="fw-semibold" id="infoCapacity">--</div></div>
-                    <div class="col-6"><span class="pg-muted">Default target</span>
-                        <div class="fw-semibold" id="infoTarget">--</div></div>
-                    <div class="col-6"><span class="pg-muted">Auger</span>
+            <div class="pg-card-body">
+                <div class="row g-2 small">
+                    <div class="col-6"><span class="pg-muted">Feeder motor</span>
                         <div class="fw-semibold" id="motorStatus">--</div></div>
                     <div class="col-6"><span class="pg-muted">Controller</span>
                         <div class="fw-semibold" id="deviceStatus">--</div></div>
+                    <div class="col-12"><span class="pg-muted">Safety limit per run</span>
+                        <div class="fw-semibold" id="infoMax">--</div></div>
                 </div>
             </div>
         </div>
@@ -77,47 +68,32 @@ window.PG_PAGE = { kind: 'feed' };
                 <div class="alert alert-warning py-2 px-3 small d-none" id="offlineWarning">
                     <strong>Controller offline.</strong>
                     Manual dispensing needs a connected device. Automatic feeding is still
-                    running locally on the ESP32 using its stored thresholds.
+                    running locally on the ESP32.
                 </div>
 
                 <form id="dispenseForm" novalidate>
                     <label for="targetWeight" class="form-label fw-semibold small">
-                        Fill the hopper up to
+                        Run the feeder for
                     </label>
                     <div class="input-group mb-1" style="max-width: 320px;">
                         <input type="number" class="form-control" id="targetWeight"
-                               min="0" step="10" required
-                               aria-describedby="targetHelp">
-                        <span class="input-group-text">grams</span>
+                               min="1" step="1" value="3" required aria-describedby="targetHelp">
+                        <span class="input-group-text">seconds</span>
                     </div>
                     <div class="form-text mb-3" id="targetHelp">
-                        The auger runs until the load cell reads this weight, then stops.
-                        It cannot remove feed, so the target must be above the current level.
+                        The motor stops by itself when the time is up.
                     </div>
                     <div class="invalid-feedback d-block text-danger small mb-2 d-none" id="targetError"></div>
-
-                    <div class="row g-2 mb-3" style="max-width: 520px;">
-                        <div class="col-6">
-                            <button type="button" class="btn btn-light w-100 btn-sm" data-preset="target">
-                                Refill target
-                            </button>
-                        </div>
-                        <div class="col-6">
-                            <button type="button" class="btn btn-light w-100 btn-sm" data-preset="full">
-                                Fill to capacity
-                            </button>
-                        </div>
-                    </div>
 
                     <div class="row g-2">
                         <div class="col-sm-7">
                             <button type="submit" class="btn btn-warning pg-control-btn" id="dispenseBtn">
-                                <span aria-hidden="true">&#127806;</span> Dispense feed
+                                <span aria-hidden="true">&#127806;</span> Run feeder
                             </button>
                         </div>
                         <div class="col-sm-5">
                             <button type="button" class="btn btn-outline-danger pg-control-btn" id="stopBtn">
-                                <span aria-hidden="true">&#9632;</span> Stop auger
+                                <span aria-hidden="true">&#9632;</span> Stop feeder
                             </button>
                         </div>
                     </div>
@@ -130,7 +106,7 @@ window.PG_PAGE = { kind: 'feed' };
                         <div>
                             <div class="fw-bold text-danger">Emergency stop</div>
                             <div class="small pg-muted">
-                                Halts the auger and the valve immediately and switches off both
+                                Halts the feeder and the pump immediately and switches off both
                                 automations until you turn them back on in Settings.
                             </div>
                         </div>

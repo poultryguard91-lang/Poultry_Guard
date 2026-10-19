@@ -30,7 +30,23 @@ if ($pdo === null) {
 }
 
 if ($pdo->query("SHOW TABLES LIKE 'users'")->fetch()) {
-    echo "[init-db] schema present, nothing to do\n";
+    // Additive migration for installs created before DHT11 support.
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS `climate_readings` (
+            `reading_id`    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `device_id`     INT UNSIGNED  NOT NULL,
+            `temperature_c` DECIMAL(5,2)  NOT NULL,
+            `humidity_pct`  DECIMAL(5,2)  NOT NULL,
+            `heat_level`    ENUM('normal','warning','danger') NOT NULL DEFAULT 'normal',
+            `source`        ENUM('live','offline_sync') NOT NULL DEFAULT 'live',
+            `timestamp`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`reading_id`),
+            KEY `idx_climate_device_time` (`device_id`, `timestamp`),
+            CONSTRAINT `fk_climate_device` FOREIGN KEY (`device_id`)
+                REFERENCES `devices` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+    echo "[init-db] schema present, climate table ensured\n";
     exit(0);
 }
 

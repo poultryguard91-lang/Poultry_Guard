@@ -108,11 +108,11 @@ require __DIR__ . '/_filters.php';
             <div class="pg-card-body">
                 <table class="table table-sm pg-table mb-0">
                     <tbody>
-                        <tr><td class="pg-muted">Feed readings</td>
+                        <tr><td class="pg-muted">Climate readings</td>
                             <td class="text-end fw-semibold pg-mono" id="actFeed">--</td></tr>
                         <tr><td class="pg-muted">Water readings</td>
                             <td class="text-end fw-semibold pg-mono" id="actWater">--</td></tr>
-                        <tr><td class="pg-muted">Feed via offline buffer</td>
+                        <tr><td class="pg-muted">Climate via offline buffer</td>
                             <td class="text-end fw-semibold pg-mono" id="actFeedOffline">--</td></tr>
                         <tr><td class="pg-muted">Water via offline buffer</td>
                             <td class="text-end fw-semibold pg-mono" id="actWaterOffline">--</td></tr>

@@ -43,11 +43,10 @@ api_run(function (array $in): ApiResult {
         $c['payload'] = $c['payload'] !== null ? json_decode((string)$c['payload'], true) : null;
         $c['ago']     = time_ago($c['created_at']);
         $c['label']   = match ($c['command']) {
-            'dispense_feed'   => 'Dispense feed',
-            'stop_feed'       => 'Stop feed auger',
+            'dispense_feed'   => 'Run feeder',
+            'stop_feed'       => 'Stop feeder',
             'refill_water'    => 'Start water refill',
             'stop_water'      => 'Stop water refill',
-            'tare_scale'      => 'Tare the scale',
             'reload_settings' => 'Reload settings',
             'emergency_stop'  => 'Emergency stop',
             'reboot'          => 'Reboot device',
@@ -78,6 +77,7 @@ api_run(function (array $in): ApiResult {
             'online'          => device_is_online($device['last_seen'], (int)get_settings($deviceId)['offline_timeout']),
             'motor_status'    => $device['motor_status'],
             'solenoid_status' => $device['solenoid_status'],
+            'feed_max_duration' => (int)get_settings($deviceId)['feed_max_duration'],
         ],
         'commands' => $rows,
         'pending'  => count(array_filter($rows, static fn(array $c): bool => in_array($c['status'], ['pending', 'sent'], true))),

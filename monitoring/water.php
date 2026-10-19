@@ -2,7 +2,7 @@
 /**
  * PoultryGuard - water monitoring.
  *
- * Live HC-SR04 readings, the level trend and the refill log for the selected
+ * Live water level readings, the level trend and the refill log for the selected
  * device. Populated by assets/js/monitoring.js.
  */
 
@@ -12,7 +12,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_page_auth('monitoring.view');
 
 $PAGE_TITLE    = 'Water Monitoring';
-$PAGE_SUBTITLE = 'Ultrasonic level readings from the water tank.';
+$PAGE_SUBTITLE = 'Water level sensor readings from the tank.';
 $NAV_ACTIVE    = 'monitoring.water';
 $PAGE_SCRIPTS  = [asset_url('assets/js/monitoring.js')];
 
@@ -57,10 +57,6 @@ window.PG_PAGE = { kind: 'water' };
                             <td class="pg-num fw-semibold" id="infoThreshold">--</td></tr>
                         <tr><td class="pg-muted">Refill target</td>
                             <td class="pg-num fw-semibold" id="infoTarget">--</td></tr>
-                        <tr><td class="pg-muted">Measured distance</td>
-                            <td class="pg-num fw-semibold pg-mono" id="infoRaw">--</td></tr>
-                        <tr><td class="pg-muted">Sensor mount offset</td>
-                            <td class="pg-num fw-semibold" id="infoOffset">--</td></tr>
                         <tr><td class="pg-muted">Automatic watering</td>
                             <td class="pg-num fw-semibold" id="infoAuto">--</td></tr>
                         <tr><td class="pg-muted">Reading age</td>
@@ -87,8 +83,8 @@ window.PG_PAGE = { kind: 'water' };
             <div class="pg-card-body">
                 <div class="pg-chart lg"><canvas id="levelChart"></canvas></div>
                 <p class="pg-muted small mb-0 mt-2">
-                    Water depth is calculated from the ultrasonic distance reading:
-                    <code>depth = tank depth &minus; (distance &minus; sensor offset)</code>.
+                    Water depth is derived from the level sensor's percentage
+                    (<code>depth = percentage &times; tank depth</code>).
                 </p>
             </div>
         </div>
@@ -103,7 +99,7 @@ window.PG_PAGE = { kind: 'water' };
                 <div class="pg-metric">
                     <div class="pg-metric-icon brand" aria-hidden="true">&#128225;</div>
                     <div>
-                        <p class="pg-metric-label">Ultrasonic sensor</p>
+                        <p class="pg-metric-label">Water level sensor</p>
                         <p class="pg-metric-value" id="sensorStatus">--</p>
                         <p class="pg-metric-sub" id="sensorSub">&nbsp;</p>
                     </div>
@@ -117,7 +113,7 @@ window.PG_PAGE = { kind: 'water' };
                 <div class="pg-metric">
                     <div class="pg-metric-icon water" aria-hidden="true">&#9881;</div>
                     <div>
-                        <p class="pg-metric-label">Solenoid valve</p>
+                        <p class="pg-metric-label">Water pump</p>
                         <p class="pg-metric-value" id="motorStatus">--</p>
                         <p class="pg-metric-sub" id="motorSub">&nbsp;</p>
                     </div>

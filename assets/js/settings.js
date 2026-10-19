@@ -15,13 +15,13 @@
 
     // Which input ids belong to which form - mirrors SETTING_GROUPS on the server.
     const FIELDS = {
-        feed: ['feed_capacity', 'feed_threshold', 'target_feed', 'feed_max_duration', 'feed_tolerance'],
-        water: ['water_capacity', 'water_capacity_liters', 'sensor_offset_cm',
+        feed: ['feed_max_duration'],
+        water: ['water_capacity', 'water_capacity_liters',
                 'water_threshold', 'water_target', 'water_max_duration'],
-        alerts: ['feed_low_percent', 'feed_critical_percent', 'water_low_percent',
+        alerts: ['water_low_percent',
                  'water_critical_percent', 'offline_timeout', 'reading_interval']
     };
-    const SWITCHES = { feed: ['auto_feed'], water: ['auto_water'], alerts: ['notify_in_app', 'notify_email'] };
+    const SWITCHES = { feed: [], water: ['auto_water'], alerts: ['notify_in_app', 'notify_email'] };
 
     function set(id, value) {
         const el = document.getElementById(id);
@@ -79,35 +79,22 @@
     // specific explanation. The server enforces them regardless.
     // -----------------------------------------------------------------
     function validateFeed() {
-        if (num('feed_threshold') >= num('target_feed')) {
-            return 'The feed threshold must be lower than the target feed quantity, ' +
-                   'otherwise dispensing would never stop.';
-        }
-        if (num('target_feed') > num('feed_capacity')) {
-            return 'The target feed quantity cannot exceed the hopper capacity.';
-        }
-        if (num('feed_capacity') <= 0) return 'Enter a hopper capacity greater than zero.';
+        if (num('feed_max_duration') < 1) return 'Enter a run time of at least 1 second.';
         return null;
     }
 
     function validateWater() {
         if (num('water_threshold') >= num('water_target')) {
             return 'The water threshold must be lower than the target water level, ' +
-                   'otherwise the valve would never close.';
+                   'otherwise the pump would never stop.';
         }
         if (num('water_target') > num('water_capacity')) {
             return 'The target water level cannot exceed the tank depth.';
-        }
-        if (num('water_capacity') + num('sensor_offset_cm') > 400) {
-            return 'Tank depth plus sensor offset exceeds the 400 cm range of the HC-SR04 sensor.';
         }
         return null;
     }
 
     function validateAlerts() {
-        if (num('feed_critical_percent') >= num('feed_low_percent')) {
-            return 'The critical feed threshold must be lower than the low feed threshold.';
-        }
         if (num('water_critical_percent') >= num('water_low_percent')) {
             return 'The critical water threshold must be lower than the low water threshold.';
         }

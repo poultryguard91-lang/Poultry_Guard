@@ -88,7 +88,7 @@ api_run(function (array $in): ApiResult {
             'max_error' => $accuracy['max_error'] !== null ? (float)$accuracy['max_error'] : null,
             'target'    => 1.0, // the ±1 cm measurement accuracy target
         ],
-        'history'    => reading_history($deviceId, 'water', $hours, $hours <= 6 ? 5 : ($hours <= 48 ? 30 : 180)),
+        'history'    => reading_history($deviceId, $hours, $hours <= 6 ? 5 : ($hours <= 48 ? 30 : 180)),
         'dispensing' => $history,
     ], 'Water data retrieved successfully');
 });

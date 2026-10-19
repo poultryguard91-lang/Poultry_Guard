@@ -31,10 +31,9 @@ api_run(function (array $in): ApiResult {
         'firmware_version'    => isset($in['firmware_version']) ? v_string($in['firmware_version'], 'Firmware version', 0, 20, '') : null,
         'ip_address'          => isset($in['ip_address']) ? v_string($in['ip_address'], 'IP address', 0, 45, '') : null,
         'wifi_rssi'           => isset($in['wifi_rssi']) && is_numeric($in['wifi_rssi']) ? (int)$in['wifi_rssi'] : null,
-        'feed_sensor_status'  => isset($in['feed_sensor_status'])  ? v_enum($in['feed_sensor_status'], 'Feed sensor status', ['ok','error','unknown']) : null,
         'water_sensor_status' => isset($in['water_sensor_status']) ? v_enum($in['water_sensor_status'], 'Water sensor status', ['ok','error','unknown']) : null,
         'motor_status'        => isset($in['motor_status'])    ? v_enum($in['motor_status'], 'Motor status', ['idle','running','error']) : null,
-        'solenoid_status'     => isset($in['solenoid_status']) ? v_enum($in['solenoid_status'], 'Solenoid status', ['idle','running','error']) : null,
+        'solenoid_status'     => isset($in['solenoid_status']) ? v_enum($in['solenoid_status'], 'Pump status', ['idle','running','error']) : null,
     ]);
 
     if ($wasOffline && $device['last_seen'] !== null) {

@@ -13,7 +13,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../../includes/api.php';
+require_once __DIR__ . '/../../includes/device.php';
 
 api_require_method('GET');
 
@@ -31,31 +31,17 @@ api_run(function (array $in): ApiResult {
     $online = device_is_online($device['last_seen'], (int)$settings['offline_timeout']);
 
     // ------------------------------------------------------------------
-    // Feed card
+    // Feeder card (timed feeder: runs, not weights)
     // ------------------------------------------------------------------
-    $feedReading = latest_feed_reading($deviceId);
-    $feedWeight  = $feedReading ? (float)$feedReading['feed_weight'] : null;
-    $feedPct     = $feedReading ? (float)$feedReading['feed_percentage'] : null;
-
     $lastFeed = fetch_last_dispensing('feed_dispensing', $deviceId);
 
     $feed = [
-        'weight'            => $feedWeight,
-        'weight_display'    => format_weight($feedWeight),
-        'percentage'        => $feedPct,
-        'status'            => $feedPct === null ? 'UNKNOWN'
-            : level_status($feedPct, (float)$settings['feed_low_percent'], (float)$settings['feed_critical_percent']),
-        'capacity'          => (float)$settings['feed_capacity'],
-        'threshold'         => (float)$settings['feed_threshold'],
-        'threshold_percent' => feed_percentage((float)$settings['feed_threshold'], (float)$settings['feed_capacity']),
-        'target'            => (float)$settings['target_feed'],
-        'auto'              => (bool)$settings['auto_feed'],
-        'reading_time'      => $feedReading['timestamp'] ?? null,
-        'reading_ago'       => time_ago($feedReading['timestamp'] ?? null),
-        'last_dispensed'    => $lastFeed['timestamp'] ?? null,
-        'last_dispensed_ago'=> time_ago($lastFeed['timestamp'] ?? null),
-        'last_dispensed_amount' => $lastFeed ? format_weight((float)($lastFeed['dispensed_amount'] ?? 0)) : null,
-        'last_dispensed_method' => $lastFeed['dispensing_method'] ?? null,
+        'running'               => $online && $device['motor_status'] === 'running',
+        'max_duration'          => (int)$settings['feed_max_duration'],
+        'last_run'              => $lastFeed['timestamp'] ?? null,
+        'last_run_ago'          => time_ago($lastFeed['timestamp'] ?? null),
+        'last_run_seconds'      => $lastFeed ? round((int)($lastFeed['duration_ms'] ?? 0) / 1000, 1) : null,
+        'last_run_method'       => $lastFeed['dispensing_method'] ?? null,
     ];
 
     // ------------------------------------------------------------------
@@ -90,6 +76,21 @@ api_run(function (array $in): ApiResult {
     ];
 
     // ------------------------------------------------------------------
+    // Climate card (DHT11)
+    // ------------------------------------------------------------------
+    $cs = db()->prepare('SELECT * FROM climate_readings WHERE device_id = ? ORDER BY `timestamp` DESC LIMIT 1');
+    $cs->execute([$deviceId]);
+    $climateRow = $cs->fetch() ?: null;
+    $climate = [
+        'temperature'  => $climateRow ? (float)$climateRow['temperature_c'] : null,
+        'humidity'     => $climateRow ? (float)$climateRow['humidity_pct'] : null,
+        'heat_level'   => $climateRow ? strtoupper($climateRow['heat_level']) : 'UNKNOWN',
+        'reading_ago'  => time_ago($climateRow['timestamp'] ?? null),
+        'warn_c'       => CLIMATE_WARN_C,
+        'danger_c'     => CLIMATE_DANGER_C,
+    ];
+
+    // ------------------------------------------------------------------
     // Device / hardware status
     // ------------------------------------------------------------------
     $system = [
@@ -108,7 +109,6 @@ api_run(function (array $in): ApiResult {
         'wifi_rssi'        => $device['wifi_rssi'] !== null ? (int)$device['wifi_rssi'] : null,
         // While the device is unreachable we cannot vouch for any of its
         // peripherals, so they report as unknown rather than as last seen.
-        'feed_sensor'      => $online ? $device['feed_sensor_status']  : 'unknown',
         'water_sensor'     => $online ? $device['water_sensor_status'] : 'unknown',
         'motor_status'     => $online ? $device['motor_status']    : 'unknown',
         'solenoid_status'  => $online ? $device['solenoid_status'] : 'unknown',
@@ -152,13 +152,12 @@ api_run(function (array $in): ApiResult {
     // ------------------------------------------------------------------
     $todayFrom = date('Y-m-d 00:00:00');
     $todayTo   = date('Y-m-d H:i:s', strtotime('+1 second'));
-    $feedToday  = feed_consumption($deviceId, $todayFrom, $todayTo, 'daily');
+    $feedToday  = feed_runs($deviceId, $todayFrom, $todayTo, 'daily');
     $waterToday = water_consumption($deviceId, $todayFrom, $todayTo, 'daily');
 
     $today = [
-        'feed_consumed_g'      => $feedToday !== []  ? $feedToday[0]['consumed'] : 0.0,
-        'feed_consumed_display'=> format_weight($feedToday !== [] ? $feedToday[0]['consumed'] : 0.0),
-        'feed_events'          => $feedToday !== []  ? $feedToday[0]['events'] : 0,
+        'feed_runs'            => $feedToday !== []  ? $feedToday[0]['runs'] : 0,
+        'feed_seconds'         => $feedToday !== []  ? $feedToday[0]['seconds'] : 0.0,
         'water_consumed_l'     => $waterToday !== [] ? $waterToday[0]['consumed_liters'] : 0.0,
         'water_events'         => $waterToday !== [] ? $waterToday[0]['events'] : 0,
     ];
@@ -176,6 +175,7 @@ api_run(function (array $in): ApiResult {
         }, get_devices()),
         'feed'        => $feed,
         'water'       => $water,
+        'climate'     => $climate,
         'alerts'      => $alerts,
         'today'       => $today,
         'server_time' => date('Y-m-d H:i:s'),
@@ -192,9 +192,9 @@ api_run(function (array $in): ApiResult {
         $to   = date('Y-m-d H:i:s', time() + 1);
 
         $payload['charts'] = [
-            'feed_level'        => reading_history($deviceId, 'feed', $hours, $bucket),
-            'water_level'       => reading_history($deviceId, 'water', $hours, $bucket),
-            'feed_consumption'  => feed_consumption($deviceId, $from, $to, 'daily'),
+            'water_level'       => reading_history($deviceId, $hours, $bucket),
+            'climate'           => climate_history($deviceId, $hours, $bucket),
+            'feed_runs'         => feed_runs($deviceId, $from, $to, 'daily'),
             'water_consumption' => water_consumption($deviceId, $from, $to, 'daily'),
         ];
     }
