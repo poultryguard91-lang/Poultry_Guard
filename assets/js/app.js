@@ -382,7 +382,34 @@ window.PG = (function () {
     // -----------------------------------------------------------------
     // Global wiring
     // -----------------------------------------------------------------
+    // Live farm clock in the top bar. Anchored to the server's time so a wrong
+    // phone/PC clock cannot mislead the operator; only the seconds tick locally.
+    function startClock() {
+        const out = document.getElementById('pgClockText');
+        if (!out || !cfg.serverTimeMs) return;
+
+        const offset = cfg.serverTimeMs - Date.now();
+        const opts = {
+            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+            hour: 'numeric', minute: '2-digit', second: '2-digit'
+        };
+        let fmt;
+        try {
+            fmt = new Intl.DateTimeFormat('en-US', Object.assign({ timeZone: cfg.timezone }, opts));
+        } catch (e) {
+            fmt = new Intl.DateTimeFormat('en-US', opts);
+        }
+        function tick() {
+            // "Mon, Oct 19, 2026, 1:52:40 PM" -> "Mon, Oct 19, 2026 1:52:40 PM"
+            out.textContent = fmt.format(new Date(Date.now() + offset)).replace(/(\d{4}),/, '$1');
+        }
+        tick();
+        setInterval(tick, 1000);
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
+        startClock();
+
         // Mobile sidebar toggle
         const toggle = document.getElementById('pgSidebarToggle');
         const sidebar = document.getElementById('pgSidebar');

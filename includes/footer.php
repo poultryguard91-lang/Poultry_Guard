@@ -37,6 +37,10 @@ window.PG_CONFIG = {
     csrfToken: <?= json_encode(csrf_token()) ?>,
     deviceId:  <?= $CURRENT_DEVICE_ID !== null ? (int)$CURRENT_DEVICE_ID : 'null' ?>,
     role:      <?= json_encode($CURRENT_USER['role']) ?>,
+    // Farm clock: server time in the house timezone, so every viewer sees the
+    // same time the feeding schedule runs on, whatever their own device says.
+    serverTimeMs: <?= (int)(microtime(true) * 1000) ?>,
+    timezone:     <?= json_encode(date_default_timezone_get()) ?>,
     // Poll a little slower than the device reports, so the dashboard is never
     // asking for data that cannot have changed yet.
     pollInterval: <?= (int)max(5, (int)($DEVICE_SETTINGS['reading_interval'] ?? 30)) * 1000 ?>

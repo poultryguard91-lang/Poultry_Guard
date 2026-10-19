@@ -167,6 +167,15 @@ h1, h2, h3, h4, h5, h6 { letter-spacing: -.011em; }
 }
 
 /* Live connection pill in the top bar */
+.pg-clock {
+    color: var(--pg-muted, #6b7280);
+    font-variant-numeric: tabular-nums;
+    padding-right: .5rem;
+}
+@media (max-width: 767.98px) {
+    .pg-clock { display: none; }
+}
+
 .pg-live {
     display: inline-flex;
     align-items: center;

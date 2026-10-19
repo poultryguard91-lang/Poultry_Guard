@@ -17,6 +17,10 @@ minutes. You are signed out after 30 minutes of inactivity.
 The menu only shows pages your role may use. If you have more than one device,
 pick it at the top of the page; the choice is kept as you move around.
 
+## Farm clock
+
+The top bar shows the current date and time in the farm's timezone (Asia/Manila by default, set with `PG_TIMEZONE`). It is taken from the server, not from your phone or PC, so it is the same time the feeding schedule and alerts use. It is hidden on narrow phone screens.
+
 ## Dashboard
 
 Updates by itself every few seconds.

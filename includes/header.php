@@ -98,6 +98,11 @@ $UNREAD_ALERTS = unread_alert_count();
 
     <div class="ms-auto d-flex align-items-center gap-2">
 
+        <span class="pg-clock small text-nowrap" id="pgClock" title="Farm time (<?= e(date_default_timezone_get()) ?>)">
+            <span aria-hidden="true">&#128339;</span>
+            <span id="pgClockText"><?= e(date('D, M j, Y g:i:s A')) ?></span>
+        </span>
+
         <?php if ($SHOW_DEVICE_PICKER && count($ALL_DEVICES) > 0): ?>
             <span class="pg-live <?= $DEVICE_ONLINE ? '' : 'is-offline' ?> d-none d-md-inline-flex" id="pgLiveBadge">
                 <span class="dot" aria-hidden="true"></span>
