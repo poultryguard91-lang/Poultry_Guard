@@ -1,0 +1,9 @@
+.git
+.claude
+__pgshot.php
+logs/*
+!logs/.htaccess
+tools
+firmware
+docs
+*.md

@@ -1,0 +1,15 @@
+# PoultryGuard - the config directory holds the database credentials.
+#
+# These files are only ever reached through require_once from application code,
+# never over HTTP. PHP would normally execute rather than print them, but a
+# server misconfiguration that disables PHP would otherwise serve the password
+# as plain text. Deny direct access outright.
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

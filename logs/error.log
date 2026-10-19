@@ -1,0 +1,7 @@
+[04-Sep-2026 13:40:23 Asia/Manila] [PoultryGuard API] SQL error: SQLSTATE[HY093]: Invalid parameter number
+[04-Sep-2026 13:40:23 Asia/Manila] [PoultryGuard API] SQL error: SQLSTATE[HY093]: Invalid parameter number
+[11-Sep-2026 11:57:58 Asia/Manila] [PoultryGuard] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'poultryguard'
+[11-Sep-2026 11:57:58 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function e() in C:\xampp\htdocs\PoultryGuard\index.php:27
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\PoultryGuard\index.php on line 27

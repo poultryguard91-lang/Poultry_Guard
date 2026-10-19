@@ -1,0 +1,113 @@
+<?php
+/**
+ * First-boot database setup for Railway.
+ *
+ * Imports database/poultryguard.sql into the database Railway already created
+ * (the DROP/CREATE DATABASE/USE statements are removed) but only when the
+ * schema is not there yet, so redeploys never touch live data.
+ *
+ *   PG_ADMIN_PASSWORD  password for the initial owner account (if unset, a
+ *                      random one is generated and printed to the deploy log)
+ *   PG_ADMIN_USERNAME  owner username (default "owner")
+ *   PG_LOAD_DEMO_DATA  set to 1 to load the sample accounts/devices/history
+ */
+declare(strict_types=1);
+
+require __DIR__ . '/../config/database.php';
+
+$pdo = null;
+for ($i = 0; $i < 20 && $pdo === null; $i++) {
+    try {
+        $pdo = db();
+    } catch (Throwable $e) {
+        fwrite(STDERR, "[init-db] waiting for database...\n");
+        sleep(3);
+    }
+}
+if ($pdo === null) {
+    fwrite(STDERR, "[init-db] database unreachable\n");
+    exit(1);
+}
+
+if ($pdo->query("SHOW TABLES LIKE 'users'")->fetch()) {
+    echo "[init-db] schema present, nothing to do\n";
+    exit(0);
+}
+
+/** Split on ; outside quotes, dropping -- comments. */
+function split_sql(string $sql): array
+{
+    $out = [];
+    $buf = '';
+    $q = null;
+    $n = strlen($sql);
+    for ($i = 0; $i < $n; $i++) {
+        $c = $sql[$i];
+        if ($q !== null) {
+            $buf .= $c;
+            if ($c === '\\' && $i + 1 < $n) {
+                $buf .= $sql[++$i];
+            } elseif ($c === $q) {
+                $q = null;
+            }
+            continue;
+        }
+        if ($c === "'" || $c === '"' || $c === '`') {
+            $q = $c;
+            $buf .= $c;
+            continue;
+        }
+        if ($c === '-' && ($sql[$i + 1] ?? '') === '-') {
+            while ($i < $n && $sql[$i] !== "\n") {
+                $i++;
+            }
+            continue;
+        }
+        if ($c === ';') {
+            if (trim($buf) !== '') {
+                $out[] = trim($buf);
+            }
+            $buf = '';
+            continue;
+        }
+        $buf .= $c;
+    }
+    if (trim($buf) !== '') {
+        $out[] = trim($buf);
+    }
+    return $out;
+}
+
+$marker = '-- --- Default accounts';
+$sql    = (string)file_get_contents(__DIR__ . '/../database/poultryguard.sql');
+$pos    = strpos($sql, $marker);
+$schema = $pos === false ? $sql : substr($sql, 0, $pos);
+$demo   = $pos === false ? '' : substr($sql, $pos);
+
+$run = static function (string $chunk) use ($pdo): void {
+    foreach (split_sql($chunk) as $stmt) {
+        // Railway supplies the database; never drop/create/switch it.
+        if (preg_match('/^(DROP\s+DATABASE|CREATE\s+DATABASE|USE)\b/i', $stmt)) {
+            continue;
+        }
+        $pdo->exec($stmt);
+    }
+};
+
+$run($schema);
+$pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
+
+if (getenv('PG_LOAD_DEMO_DATA') === '1') {
+    $run($demo);
+    echo "[init-db] schema + demo data loaded (change the demo passwords!)\n";
+    exit(0);
+}
+
+$pass = getenv('PG_ADMIN_PASSWORD') ?: '';
+if ($pass === '') {
+    $pass = bin2hex(random_bytes(9));
+    echo "[init-db] PG_ADMIN_PASSWORD not set; generated owner password: {$pass}\n";
+}
+$pdo->prepare("INSERT INTO users (name, username, email, password, role, status) VALUES (?, ?, NULL, ?, 'owner', 'active')")
+    ->execute(['Farm Administrator', getenv('PG_ADMIN_USERNAME') ?: 'owner', password_hash($pass, PASSWORD_DEFAULT)]);
+echo "[init-db] schema created and owner account created. Add devices from the Devices page.\n";

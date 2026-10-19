@@ -1,0 +1,92 @@
+# =====================================================================
+#  PoultryGuard - Apache configuration
+# =====================================================================
+
+# Never list a directory that has no index file.
+Options -Indexes
+
+DirectoryIndex index.php index.html
+
+# ---------------------------------------------------------------------
+# Security headers
+# ---------------------------------------------------------------------
+<IfModule mod_headers.c>
+    # Do not let a browser second-guess a declared content type.
+    Header set X-Content-Type-Options "nosniff"
+
+    # This is an internal farm tool; it has no reason to be framed.
+    Header set X-Frame-Options "SAMEORIGIN"
+
+    Header set Referrer-Policy "same-origin"
+
+    # No feature of the dashboard needs these device capabilities.
+    Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+
+    # Everything is served from this origin; nothing is loaded from a CDN,
+    # which is also why the dashboard keeps working on a farm LAN with no
+    # internet connection.
+    Header set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+</IfModule>
+
+# ---------------------------------------------------------------------
+# Block access to files that should never be fetched over HTTP
+# ---------------------------------------------------------------------
+<FilesMatch "\.(sql|log|md|ini|sh|bak|ino|h)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Dotfiles (.htaccess, .env, .git config fragments)
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Report include fragments are not pages.
+<FilesMatch "^_">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ---------------------------------------------------------------------
+# Static asset caching
+# ---------------------------------------------------------------------
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css            "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+    ExpiresByType image/png           "access plus 30 days"
+    ExpiresByType image/svg+xml       "access plus 30 days"
+</IfModule>
+
+# API responses are live data and must never be cached.
+<IfModule mod_headers.c>
+    <If "%{REQUEST_URI} =~ m#^.*/api/.*#">
+        Header set Cache-Control "no-store, no-cache, must-revalidate"
+    </If>
+</IfModule>
+
+# ---------------------------------------------------------------------
+# PHP hardening (applies when PHP runs as an Apache module, as in XAMPP)
+# ---------------------------------------------------------------------
+<IfModule mod_php.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_value session.cookie_httponly 1
+    php_value session.use_strict_mode 1
+</IfModule>
