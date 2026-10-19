@@ -114,7 +114,7 @@ dashboard's *Maximum pump/motor run time* settings can only lower these limits.
 ## 5. Scheduled feeding
 
 Feeding times (up to 8 a day, each with its own run seconds) are set on the web
-**Settings** page and sent to the board, which saves them in its flash memory and
+**Scheduled Feeding** page and sent to the board, which saves them in its flash memory and
 runs them from its own clock. The clock comes from NTP over Wi-Fi
 (`NTP_SERVER`, UTC+8 by default in `config.h`).
 
@@ -154,5 +154,5 @@ raises the matching alerts at the same thresholds (`CLIMATE_WARN_C` /
 | Pump never stops | `WATER_FULL_VALUE` too high for your strip; the safety timer will stop it |
 | Pump never starts | `WATER_LOW_VALUE` too low; or auto refill was turned off after a timeout (`auto on`) |
 | ESP32 resets when a motor starts | Supply too small or no flyback diode; power the ESP32 from its own buck output |
-| Scheduled feed did not run | `sched show` (is it ON, are the times there?); Settings → *Scheduled feeding* on; clock set (a dashboard alert says if not); feeder not busy; a *stop* since boot turned it off |
+| Scheduled feed did not run | `sched show` (is it ON, are the times there?); Scheduled Feeding page → switch on; clock set (a dashboard alert says if not); feeder not busy; a *stop* since boot turned it off |
 | Dashboard shows Offline | See INSTALLATION.md section 10 |

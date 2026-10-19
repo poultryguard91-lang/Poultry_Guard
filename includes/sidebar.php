@@ -39,12 +39,19 @@ $NAV = [
         ],
     ],
     [
-        'section' => 'Automation',
+        'section' => 'Feeding',
         'items' => [
             ['key' => 'automation.feed', 'label' => 'Feed Control', 'path' => 'automation/feed.php',
-             'perm' => 'automation.control', 'icon' => '&#9881;'],
+             'perm' => 'automation.control', 'icon' => '&#127806;'],
+            ['key' => 'automation.schedule', 'label' => 'Scheduled Feeding', 'path' => 'automation/schedule.php',
+             'perm' => 'settings.view', 'icon' => '&#128339;'],
+        ],
+    ],
+    [
+        'section' => 'Watering',
+        'items' => [
             ['key' => 'automation.water', 'label' => 'Water Control', 'path' => 'automation/water.php',
-             'perm' => 'automation.control', 'icon' => '&#9881;'],
+             'perm' => 'automation.control', 'icon' => '&#128167;'],
         ],
     ],
     [

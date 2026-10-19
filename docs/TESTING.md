@@ -61,7 +61,9 @@ been compiled or run on a board by the author; hardware cases below are ☐.
 | F9 | Save water settings only | Feeding schedule unchanged | ✔ |
 | F10 | Device posts the "clock not set" alert via `sync` | 200; alert created | ✔ |
 | F11 | `init-db.php` on a database from before this feature | Adds `feed_schedule`; second run changes nothing | ✔ |
-| F12 | Schedule editor in the browser: add/remove rows, save, reload | Rows persist | ☐ |
+| F12 | Staff and owner both open Scheduled Feeding; owner sees it read-only (no save button); owner save via API gives 403; saving only the max run time keeps the schedule | ✔ |
+| F13 | Menu shows *Feeding → Feed Control, Scheduled Feeding* and *Watering → Water Control* in the browser | ☐ |
+| F14 | Schedule editor in the browser: add/remove rows, save, reload | Rows persist | ☐ |
 
 ## 3. Database
 
@@ -111,7 +113,7 @@ been compiled or run on a board by the author; hardware cases below are ☐.
     once Wi-Fi returns.
 18. Start a manual feed a few seconds before a slot: the slot is skipped or runs
     after it, never overlapping.
-19. Dashboard Emergency stop: scheduled feeding switches off (Settings shows Off).
+19. Dashboard Emergency stop: scheduled feeding switches off (the Scheduled Feeding page shows Off).
 20. Power-cycle both relays' loads: neither motor starts at boot.
 
 ## 6. Known limitations

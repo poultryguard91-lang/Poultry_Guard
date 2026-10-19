@@ -184,7 +184,7 @@ GPIO 4, water sensor on GPIO 34).
 | Water level strip / float → % | Water monitoring card, charts, low-water alerts |
 | DHT11 temperature & humidity | *House climate* card; heat warning ≥ 32 °C, danger ≥ 35 °C raise alerts |
 | Pump runs (auto/manual) | Water refill history; dashboard **Refill** / **Stop** buttons |
-| Feeder runs (timed or scheduled) | Feed history; dashboard **Run feeder** sets a run time (`duration_sec`); Settings holds the daily feeding times |
+| Feeder runs (timed or scheduled) | Feed history; dashboard **Run feeder** sets a run time (`duration_sec`); the **Scheduled Feeding** page holds the daily feeding times |
 | Wi-Fi/server down | Pump and feeder keep running locally; readings and runs are buffered in RAM (60 readings / 10 runs) and uploaded on reconnect |
 
 There is no load cell, so there is no feed-weight monitoring or FCR report, and

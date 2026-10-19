@@ -113,7 +113,8 @@ require __DIR__ . '/../includes/header.php';
                         <div class="fw-semibold" id="feedAuto">--</div>
                     </div>
                     <div class="col-12">
-                        <div class="pg-muted">Feeding times</div>
+                        <div class="pg-muted">Feeding times
+                            &middot; <a href="<?= e(url('automation/schedule.php')) ?>">edit</a></div>
                         <div class="fw-semibold" id="feedSchedule">--</div>
                     </div>
                 </div>

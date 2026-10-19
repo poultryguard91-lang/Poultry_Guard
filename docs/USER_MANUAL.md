@@ -56,14 +56,20 @@ The command is queued and picked up by the controller within a few seconds. The
 *Command history* table shows it move from *Queued* → *Delivered* → *Executed*.
 The buttons are disabled while the controller is offline (Stop is still sent).
 
-## Scheduled feeding (Farm Staff)
+## Feeding menu
 
-Open **Settings → Feed settings**.
+The sidebar has a **Feeding** group with two pages: **Feed Control** (run or stop the
+feeder now) and **Scheduled Feeding** (daily feeding times). **Watering** holds Water Control.
+
+## Scheduled feeding (Farm Staff edit, Farm Owner view)
+
+Open **Feeding → Scheduled Feeding**. The left panel shows whether the schedule is on,
+the **next feeding** and how long until it, and the daily totals.
 
 1. Turn **Scheduled feeding** on.
 2. Press **+ Add time**, pick the time (for example 06:00) and how many seconds the
    feeder runs. You can add up to 8 times a day.
-3. Press **Save feed settings**.
+3. Press **Save schedule**.
 
 The controller stores the schedule and feeds at those times on its own, even if the
 internet is down. Feeds that were scheduled appear in the feed history as
@@ -77,7 +83,7 @@ Good to know:
 * If the controller has no correct clock (it needs internet after power-up to set
   it), it **skips** scheduled feeds and shows a warning alert instead of feeding at
   the wrong time. Feed manually until the alert clears.
-* **Emergency stop** switches scheduled feeding off. Turn it on again in Settings.
+* **Emergency stop** switches scheduled feeding off. Turn it on again on the Scheduled Feeding page.
 
 ## Automation → Water Control (Farm Staff)
 
@@ -113,8 +119,8 @@ status, type or date. *Mark read* acknowledges; *Resolve* closes. Typical alerts
 
 ## Settings
 
-* **Feed settings** (Staff) — maximum feeder run time, scheduled feeding on/off and
-  the feeding times.
+* **Feed settings** (Staff) — maximum feeder run time (feeding times are on the
+  Scheduled Feeding page).
 * **Water settings** (Staff) — tank depth and volume, refill start/stop levels,
   maximum pump run time, automatic watering.
 * **Alert & notification settings** (Owner) — low/critical water percentages,
