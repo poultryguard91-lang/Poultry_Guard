@@ -26,11 +26,11 @@ $__env = static function (array $names, string $fallback): string {
     return $fallback;
 };
 
-define('DB_HOST', $__env(['PG_DB_HOST', 'MYSQLHOST'], $__url['host'] ?? '127.0.0.1'));
-define('DB_PORT', $__env(['PG_DB_PORT', 'MYSQLPORT'], isset($__url['port']) ? (string)$__url['port'] : '3306'));
-define('DB_NAME', $__env(['PG_DB_NAME', 'MYSQLDATABASE'], isset($__url['path']) ? ltrim($__url['path'], '/') : 'poultryguard'));
-define('DB_USER', $__env(['PG_DB_USER', 'MYSQLUSER'], isset($__url['user']) ? urldecode($__url['user']) : 'root'));
-define('DB_PASS', $__env(['PG_DB_PASS', 'MYSQLPASSWORD'], isset($__url['pass']) ? urldecode($__url['pass']) : ''));
+define('DB_HOST', $__env(['PG_DB_HOST', 'MYSQLHOST'], ($__url['host'] ?? '') ?: '127.0.0.1'));
+define('DB_PORT', $__env(['PG_DB_PORT', 'MYSQLPORT'], (string)(($__url['port'] ?? 0) ?: 3306)));
+define('DB_NAME', $__env(['PG_DB_NAME', 'MYSQLDATABASE'], (ltrim($__url['path'] ?? '', '/') ?: 'poultryguard')));
+define('DB_USER', $__env(['PG_DB_USER', 'MYSQLUSER'], (urldecode($__url['user'] ?? '') ?: 'root')));
+define('DB_PASS', $__env(['PG_DB_PASS', 'MYSQLPASSWORD'], urldecode($__url['pass'] ?? '')));
 
 /**
  * Raised when the database is unreachable, so callers can show a friendly
