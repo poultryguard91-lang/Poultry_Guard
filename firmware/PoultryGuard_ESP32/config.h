@@ -30,11 +30,11 @@
  *
  *  Address of the PoultryGuard installation AS SEEN FROM THE ESP32:
  *    - XAMPP on your PC : the PC's LAN IP (ipconfig -> IPv4), NOT localhost
- *                         e.g. "http://192.168.1.10/PoultryGuard"
+ *                         e.g. "https://poultryguard-production.up.railway.app"
  *    - Railway / hosted : the https URL, e.g. "https://yourapp.up.railway.app"
  *  No trailing slash.
  * ------------------------------------------------------------------- */
-#define SERVER_BASE_URL      "http://192.168.1.10/PoultryGuard"
+#define SERVER_BASE_URL      "https://poultryguard-production.up.railway.app"
 
 /* Must match the device registered on the Devices page. The API key is
  * shown once when the device is registered. */

@@ -456,8 +456,14 @@ int postJson(const char* path, const String& body, String& out) {
   WiFiClientSecure secure;
   if (url.startsWith("https")) { secure.setInsecure(); http.begin(secure, url); }   // no certificate pinning
   else                         { http.begin(plain, url); }
-  http.setTimeout(HTTP_TIMEOUT);
-  http.setConnectTimeout(HTTP_TIMEOUT / 2);
+  /* While the server is unreachable a full-length wait freezes the whole control loop
+   * (sensors, serial, safety timers). After a failure use a short wait, and give the
+   * full one a chance on every third try so a slow but reachable server still works. */
+  static uint8_t failStreak = 0;
+  const bool shortTry = (failStreak > 0) && (failStreak % 3 != 0) && (HTTP_TIMEOUT > 3000);
+  const uint32_t waitMs = shortTry ? 3000 : HTTP_TIMEOUT;
+  http.setTimeout(waitMs);
+  http.setConnectTimeout(waitMs / 2);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-API-Key", API_KEY);
@@ -465,6 +471,7 @@ int postJson(const char* path, const String& body, String& out) {
   if (code > 0) out = http.getString();
   http.end();
   serverOk = (code >= 200 && code < 300);
+  if (serverOk) failStreak = 0; else if (failStreak < 250) failStreak++;
   return code;
 }
 
@@ -731,16 +738,10 @@ void startWifi() {
 
 void syncSetup() {
   startWifi();
-  Serial.print("Connecting to Wi-Fi '" WIFI_SSID "' ");
-  unsigned long t0 = millis();
-  while (!wifiUp() && millis() - t0 < WIFI_CONNECT_TIMEOUT) { delay(300); Serial.print("."); }
-  Serial.println();
-  if (wifiUp()) {
-    Serial.print("Wi-Fi OK, IP "); Serial.println(WiFi.localIP());
-    configTime(NTP_GMT_OFFSET_SEC, NTP_DST_OFFSET_SEC, NTP_SERVER);
-  } else {
-    Serial.println("Wi-Fi not connected - running offline, will keep retrying.");
-  }
+  /* Do NOT wait here: sensors, auto refill and the relays must start working at
+   * once, with or without a network. Wi-Fi joins in the background; syncLoop()
+   * reports it and starts the clock (NTP) as soon as it is up. */
+  Serial.println("Connecting to Wi-Fi '" WIFI_SSID "' in the background - sensors and relays are already running.");
 }
 
 /* Called from loop(). Does nothing slow unless an interval has elapsed.
@@ -749,16 +750,33 @@ void syncSetup() {
 void syncLoop() {
   static unsigned long lastUpload = 0, lastPoll = 0;
   static bool ntpStarted = false;
+  static bool wifiAnnounced = false;
+  static bool serverAnnounced = false;     // "going offline mode" already printed
+  static bool firstPoll = true;
+
+  if (wifiUp() && !wifiAnnounced) {
+    wifiAnnounced = true;
+    Serial.print(">> Wi-Fi OK, IP "); Serial.println(WiFi.localIP());
+  }
+  if (!wifiUp()) wifiAnnounced = false;
 
   if (!wifiUp()) {
     serverOk = false;
-    if (millis() - wifiLastTry >= WIFI_RETRY_INTERVAL) { WiFi.disconnect(); startWifi(); }
+    if (millis() - wifiLastTry >= WIFI_RETRY_INTERVAL) {
+      Serial.println(">> No Wi-Fi - offline mode. Retrying to reconnect to Wi-Fi...");
+      WiFi.disconnect(); startWifi();
+    }
     return;
   }
   if (!ntpStarted) {
     configTime(NTP_GMT_OFFSET_SEC, NTP_DST_OFFSET_SEC, NTP_SERVER);
     ntpStarted = true;
   }
+
+  /* Server down while a relay is running: skip every network call. Each one could block
+   * for seconds and delay the tank-FULL stop and the safety timers. Nothing is lost -
+   * events and readings stay queued and go out once the relays are idle. */
+  if (!serverOk && (pump.on || motor.on)) return;
 
   sendEvents();
   sendPendingAlert();
@@ -768,8 +786,21 @@ void syncLoop() {
   if (millis() - lastPoll >= pollEvery) {
     lastPoll = millis();
     String r;
+    if (firstPoll)            Serial.println(">> Connecting to the server...");
+    else if (serverAnnounced) Serial.println(">> Retrying to reconnect to the server...");
     int code = postJson("/api/esp32/status.php", "{" + idJson() + "}", r);
-    if (code >= 200 && code < 300) handleReply(r);
+    if (code >= 200 && code < 300) {
+      if (serverAnnounced) Serial.println(">> Reconnected to the server. Back online.");
+      else if (firstPoll)  Serial.println(">> Server connected.");
+      serverAnnounced = false;
+      handleReply(r);
+    } else if (!serverAnnounced) {
+      serverAnnounced = true;
+      Serial.println(">> Server not found, going offline mode. Sensors, pump and feeder keep running.");
+    } else {
+      Serial.println(">> No server found. Still offline.");
+    }
+    firstPoll = false;
   }
 
   /* Telemetry. Skipped while the pump is filling to FULL: the stop check must
