@@ -14,13 +14,14 @@
 #define POULTRYGUARD_CONFIG_H
 
 /* Set to 0 to run fully standalone (serial only), as before. */
+#include "secrets.h"   /* WIFI_SSID, WIFI_PASSWORD, API_KEY */
+
 #define ENABLE_SYNC          1
 
 /* ---------------------------------------------------------------------
  *  1. Wi-Fi (2.4 GHz only)
  * ------------------------------------------------------------------- */
-#define WIFI_SSID            "YourWiFiName"
-#define WIFI_PASSWORD        "YourWiFiPassword"
+/* WIFI_SSID and WIFI_PASSWORD live in secrets.h (git-ignored). */
 
 #define WIFI_CONNECT_TIMEOUT 15000UL   /* wait at boot, then run offline    */
 #define WIFI_RETRY_INTERVAL  30000UL   /* retry after a drop                */
@@ -30,7 +31,7 @@
  *
  *  Address of the PoultryGuard installation AS SEEN FROM THE ESP32:
  *    - XAMPP on your PC : the PC's LAN IP (ipconfig -> IPv4), NOT localhost
- *                         e.g. "https://poultryguard-production.up.railway.app"
+ *                         e.g. "http://192.168.1.10/PoultryGuard"
  *    - Railway / hosted : the https URL, e.g. "https://yourapp.up.railway.app"
  *  No trailing slash.
  * ------------------------------------------------------------------- */
@@ -39,7 +40,7 @@
 /* Must match the device registered on the Devices page. The API key is
  * shown once when the device is registered. */
 #define DEVICE_UID           "ESP32-A1B2C3D4E5F6"
-#define API_KEY              "97161c5b9d4ab435f52f8a8a9b48af25e8c09751"
+/* API_KEY lives in secrets.h (git-ignored). */
 
 #define FIRMWARE_VERSION     "2.0.0"
 
