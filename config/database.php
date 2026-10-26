@@ -72,7 +72,7 @@ final class Database
                 // application immune to SQL injection through bound parameters.
                 PDO::ATTR_EMULATE_PREPARES   => false,
                 PDO::ATTR_STRINGIFY_FETCHES  => false,
-                PDO::MYSQL_ATTR_INIT_COMMAND => "SET SESSION sql_mode='STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION'",
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET SESSION sql_mode='STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION', time_zone='" . date('P') . "'",
             ]);
         } catch (PDOException $e) {
             error_log('[PoultryGuard] Database connection failed: ' . $e->getMessage());
