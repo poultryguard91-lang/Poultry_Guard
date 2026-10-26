@@ -75,7 +75,7 @@ function setting_field(
                 <div class="row g-3">
                     <?php
                     setting_field('feed_max_duration', 'Maximum motor run time', 'seconds',
-                        'Safety cut-off: the feeder motor never runs longer than this in one run.', $CAN_THRESHOLDS, '1', '1', '3600');
+                        'Safety cut-off: the feeder motor never runs longer than this in one run.', $CAN_THRESHOLDS, '1', '1', (string)FEED_MAX_SEC_LIMIT);
                     ?>
                 </div>
                 <p class="small mt-3 mb-0">

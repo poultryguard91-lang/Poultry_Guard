@@ -71,7 +71,7 @@ api_run(function (array $in): ApiResult {
     $new = [];
 
     if (isset($touched['thresholds'])) {
-        $new['feed_max_duration'] = v_int($in['feed_max_duration']   ?? null, 'Maximum feeder run time', 1, 3600, (int)$current['feed_max_duration']);
+        $new['feed_max_duration'] = v_int($in['feed_max_duration']   ?? null, 'Maximum feeder run time', 1, FEED_MAX_SEC_LIMIT, (int)$current['feed_max_duration']);
 
         $new['auto_feed'] = to_bool($in['auto_feed'] ?? $current['auto_feed']);
         if (array_key_exists('feed_schedule', $in)) {

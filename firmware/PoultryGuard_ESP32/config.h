@@ -54,6 +54,7 @@
 
 #define UPLOAD_INTERVAL      30000UL   /* sensor reading upload             */
 #define COMMAND_POLL_INTERVAL 5000UL   /* collect dashboard commands        */
+#define STOP_POLL_INTERVAL   1000UL   /* same, while the feeder/pump runs: Stop reacts in ~1 s */
 
 /* ---------------------------------------------------------------------
  *  4. Offline buffering (kept in RAM; lost on reboot)

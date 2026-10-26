@@ -66,9 +66,9 @@
 /* ---------- Settings ---------- */
 const bool RELAY_ACTIVE_LOW = true;   // your 4-relay board turns ON with LOW
 
-#define PUMP_MAX_SEC    60   // safety: one refill never runs longer than this.
+#define PUMP_MAX_SEC    20   // safety: one refill never runs longer than this.
                              // Time a real refill and set this a bit above it.
-#define PUMP_REST_SEC   10   // wait this long before the next automatic refill
+#define PUMP_REST_SEC   5   // wait this long before the next automatic refill
 #define FEED_SEC        3
 #define MOTOR_MAX_SEC   30
 
@@ -451,9 +451,12 @@ void eventPush(const String& json, long cmd, bool failed) {
 int postJson(const char* path, const String& body, String& out) {
   if (!wifiUp()) return -1;
   String url = String(SERVER_BASE_URL) + path;
-  HTTPClient http;
-  WiFiClient plain;
-  WiFiClientSecure secure;
+  /* Kept between calls so the connection (and its TLS session) is reused: a fresh
+   * handshake takes seconds, which would make a 1 s stop poll impossible. */
+  static HTTPClient http;
+  static WiFiClient plain;
+  static WiFiClientSecure secure;
+  http.setReuse(true);
   if (url.startsWith("https")) { secure.setInsecure(); secure.setHandshakeTimeout(HTTP_TIMEOUT / 1000 + 1); http.begin(secure, url); }   // no certificate pinning
   else                         { http.begin(plain, url); }
   /* While the server is unreachable a full-length wait freezes the whole control loop
@@ -470,6 +473,7 @@ int postJson(const char* path, const String& body, String& out) {
   int code = http.POST(body);
   if (code > 0) out = http.getString();
   http.end();
+  if (code <= 0) { secure.stop(); plain.stop(); }   // drop a dead connection so the next call starts clean
   if (code < 200 || code >= 300) {
     Serial.print(F("[net] ")); Serial.print(path); Serial.print(F(" -> ")); Serial.print(code);
     Serial.print(F(" ")); Serial.print(code <= 0 ? HTTPClient::errorToString(code) : out.substring(0, 80)); Serial.println();
@@ -788,7 +792,7 @@ void syncLoop() {
   sendPendingAlert();
 
   /* Dashboard commands (lightweight heartbeat) - keeps the stop buttons responsive */
-  unsigned long pollEvery = serverOk ? COMMAND_POLL_INTERVAL : 30000UL;
+  unsigned long pollEvery = !serverOk ? 30000UL : ((motor.on || pump.on) ? STOP_POLL_INTERVAL : COMMAND_POLL_INTERVAL);
   if (millis() - lastPoll >= pollEvery) {
     lastPoll = millis();
     String r;

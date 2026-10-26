@@ -253,12 +253,16 @@ function get_settings(int $deviceId): array
     $st = db()->prepare('SELECT * FROM system_settings WHERE device_id = ?');
     $st->execute([$deviceId]);
     $row = $st->fetch();
-    if ($row) {
-        return $row;
+    if (!$row) {
+        db()->prepare('INSERT INTO system_settings (device_id) VALUES (?)')->execute([$deviceId]);
+        $st->execute([$deviceId]);
+        $row = $st->fetch() ?: [];
     }
-    db()->prepare('INSERT INTO system_settings (device_id) VALUES (?)')->execute([$deviceId]);
-    $st->execute([$deviceId]);
-    return $st->fetch() ?: [];
+    // The firmware cuts every feeder run at FEED_MAX_SEC_LIMIT, so never promise more.
+    if (isset($row['feed_max_duration'])) {
+        $row['feed_max_duration'] = min((int)$row['feed_max_duration'], FEED_MAX_SEC_LIMIT);
+    }
+    return $row;
 }
 
 /**

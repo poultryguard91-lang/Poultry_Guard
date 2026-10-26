@@ -49,6 +49,8 @@ define('LOGIN_LOCKOUT_SECONDS', 900);
 
 /** Fallback for how long a device may stay silent before it counts as offline. */
 define('DEFAULT_OFFLINE_TIMEOUT', 300);
+// The ESP32 firmware never runs the feeder longer than this (MOTOR_MAX_SEC).
+define('FEED_MAX_SEC_LIMIT', 30);
 
 /** Roles. */
 define('ROLE_OWNER', 'owner');
