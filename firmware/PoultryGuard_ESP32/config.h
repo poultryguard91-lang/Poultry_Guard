@@ -49,7 +49,7 @@
 /* One HTTP request blocks the loop for up to this long when the server is
  * unreachable, so keep it short. The pump/feeder safety timers are checked
  * again as soon as the request returns. */
-#define HTTP_TIMEOUT         4000
+#define HTTP_TIMEOUT         10000   /* https handshake alone takes 2-5 s */
 
 #define UPLOAD_INTERVAL      30000UL   /* sensor reading upload             */
 #define COMMAND_POLL_INTERVAL 5000UL   /* collect dashboard commands        */

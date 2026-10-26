@@ -454,13 +454,13 @@ int postJson(const char* path, const String& body, String& out) {
   HTTPClient http;
   WiFiClient plain;
   WiFiClientSecure secure;
-  if (url.startsWith("https")) { secure.setInsecure(); http.begin(secure, url); }   // no certificate pinning
+  if (url.startsWith("https")) { secure.setInsecure(); secure.setHandshakeTimeout(HTTP_TIMEOUT / 1000 + 1); http.begin(secure, url); }   // no certificate pinning
   else                         { http.begin(plain, url); }
   /* While the server is unreachable a full-length wait freezes the whole control loop
    * (sensors, serial, safety timers). After a failure use a short wait, and give the
    * full one a chance on every third try so a slow but reachable server still works. */
   static uint8_t failStreak = 0;
-  const bool shortTry = (failStreak > 0) && (failStreak % 3 != 0) && (HTTP_TIMEOUT > 3000);
+  const bool shortTry = !url.startsWith("https") && (failStreak > 0) && (failStreak % 3 != 0) && (HTTP_TIMEOUT > 3000);   // TLS needs the full wait
   const uint32_t waitMs = shortTry ? 3000 : HTTP_TIMEOUT;
   http.setTimeout(waitMs);
   http.setConnectTimeout(waitMs / 2);
@@ -470,6 +470,10 @@ int postJson(const char* path, const String& body, String& out) {
   int code = http.POST(body);
   if (code > 0) out = http.getString();
   http.end();
+  if (code < 200 || code >= 300) {
+    Serial.print(F("[net] ")); Serial.print(path); Serial.print(F(" -> ")); Serial.print(code);
+    Serial.print(F(" ")); Serial.print(code <= 0 ? HTTPClient::errorToString(code) : out.substring(0, 80)); Serial.println();
+  }
   serverOk = (code >= 200 && code < 300);
   if (serverOk) failStreak = 0; else if (failStreak < 250) failStreak++;
   return code;
