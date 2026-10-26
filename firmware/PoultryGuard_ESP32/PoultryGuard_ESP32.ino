@@ -768,6 +768,8 @@ void syncLoop() {
     serverOk = false;
     if (millis() - wifiLastTry >= WIFI_RETRY_INTERVAL) {
       Serial.println(">> No Wi-Fi - offline mode. Retrying to reconnect to Wi-Fi...");
+      Serial.print(F("   Wi-Fi status ")); Serial.print((int)WiFi.status());
+      Serial.println(F(" (1=SSID not found, 4=wrong password/rejected, 6=disconnected, 0=idle) - check WIFI_SSID / WIFI_PASSWORD, 2.4 GHz only"));
       WiFi.disconnect(); startWifi();
     }
     return;
