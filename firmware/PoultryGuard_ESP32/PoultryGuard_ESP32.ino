@@ -70,7 +70,7 @@ const bool RELAY_ACTIVE_LOW = true;   // your 4-relay board turns ON with LOW
                              // Time a real refill and set this a bit above it.
 #define PUMP_REST_SEC   5   // wait this long before the next automatic refill
 #define FEED_SEC        3
-#define MOTOR_MAX_SEC   30
+#define MOTOR_MAX_SEC   20
 
 /* Analog sensor (type 1). Type "status" with the sensor dry, half in water
  * and fully in water to see the values, then set these two.
@@ -457,14 +457,16 @@ int postJson(const char* path, const String& body, String& out) {
   static WiFiClient plain;
   static WiFiClientSecure secure;
   http.setReuse(true);
-  if (url.startsWith("https")) { secure.setInsecure(); secure.setHandshakeTimeout(HTTP_TIMEOUT / 1000 + 1); http.begin(secure, url); }   // no certificate pinning
+  if (url.startsWith("https")) { secure.setInsecure(); secure.setHandshakeTimeout(((pump.on || motor.on) ? RELAY_HTTP_TIMEOUT : HTTP_TIMEOUT) / 1000 + 1); http.begin(secure, url); }   // no certificate pinning
   else                         { http.begin(plain, url); }
   /* While the server is unreachable a full-length wait freezes the whole control loop
    * (sensors, serial, safety timers). After a failure use a short wait, and give the
    * full one a chance on every third try so a slow but reachable server still works. */
   static uint8_t failStreak = 0;
   const bool shortTry = !url.startsWith("https") && (failStreak > 0) && (failStreak % 3 != 0) && (HTTP_TIMEOUT > 3000);   // TLS needs the full wait
-  const uint32_t waitMs = shortTry ? 3000 : HTTP_TIMEOUT;
+  /* While a relay is running the safety timer must not be held up for long: a stalled request
+   * may cost at most RELAY_HTTP_TIMEOUT. The kept-alive connection normally answers in ms. */
+  const uint32_t waitMs = (pump.on || motor.on) ? RELAY_HTTP_TIMEOUT : (shortTry ? 3000 : HTTP_TIMEOUT);
   http.setTimeout(waitMs);
   http.setConnectTimeout(waitMs / 2);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);

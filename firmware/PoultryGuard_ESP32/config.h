@@ -52,6 +52,9 @@
  * again as soon as the request returns. */
 #define HTTP_TIMEOUT         10000   /* https handshake alone takes 2-5 s */
 
+/* Longest one request may block while the pump or feeder is running (keeps the safety timers on time). */
+#define RELAY_HTTP_TIMEOUT   2500
+
 #define UPLOAD_INTERVAL      30000UL   /* sensor reading upload             */
 #define COMMAND_POLL_INTERVAL 5000UL   /* collect dashboard commands        */
 #define STOP_POLL_INTERVAL   1000UL   /* same, while the feeder/pump runs: Stop reacts in ~1 s */
