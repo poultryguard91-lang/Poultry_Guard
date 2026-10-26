@@ -34,6 +34,8 @@
                     (disabled ? 'Enable' : 'Disable') + '</button>' +
                 '<button class="btn btn-sm btn-outline-warning" data-act="key" data-id="' + d.device_id + '">' +
                     'New API key</button>' +
+                '<button class="btn btn-sm btn-outline-danger ms-auto" data-act="delete" data-id="' + d.device_id + '">' +
+                    'Delete</button>' +
               '</div>'
             : '';
 
@@ -250,6 +252,32 @@
         }
     }
 
+    async function remove(id) {
+        const d = cache.find(function (x) { return x.device_id === id; });
+        if (!d) return;
+
+        const ok = await PG.confirm({
+            title: 'Delete device',
+            message: 'Permanently delete "' + d.device_name + '"?',
+            detail: 'Its readings, feeding and watering history, alerts and settings are removed ' +
+                'and cannot be recovered. The controller will be refused by the API.',
+            confirmText: 'Delete device',
+            variant: 'danger'
+        });
+        if (!ok) return;
+
+        try {
+            await PG.api('api/devices/save.php', {
+                method: 'POST',
+                body: { action: 'delete', device_id: id }
+            });
+            PG.toast('Device deleted.', 'success');
+            refresh();
+        } catch (e) {
+            PG.toast(e.message, 'danger');
+        }
+    }
+
     async function rotateKey(id) {
         const d = cache.find(function (x) { return x.device_id === id; });
         if (!d) return;
@@ -298,6 +326,7 @@
             if (btn.dataset.act === 'edit') openEdit(id);
             else if (btn.dataset.act === 'toggle') toggle(id);
             else if (btn.dataset.act === 'key') rotateKey(id);
+            else if (btn.dataset.act === 'delete') remove(id);
         });
 
         document.getElementById('copyKeyBtn').addEventListener('click', function () {

@@ -2,9 +2,9 @@
 /**
  * POST /api/devices/save.php
  *
- * Add, edit, enable/disable a device, or roll its API key.
+ * Add, edit, enable/disable, delete a device, or roll its API key.
  *
- * Body: { "action": "create"|"update"|"toggle"|"regenerate_key", ... }
+ * Body: { "action": "create"|"update"|"toggle"|"regenerate_key"|"delete", ... }
  *
  * Requires the devices.manage permission (Farm Owner).
  */
@@ -19,7 +19,7 @@ api_run(function (array $in): ApiResult {
     $user = require_permission('devices.manage');
     require_csrf($in);
 
-    $action = v_enum($in['action'] ?? null, 'Action', ['create', 'update', 'toggle', 'regenerate_key']);
+    $action = v_enum($in['action'] ?? null, 'Action', ['create', 'update', 'toggle', 'regenerate_key', 'delete']);
 
     // ------------------------------------------------------------------
     // Create
@@ -116,6 +116,19 @@ api_run(function (array $in): ApiResult {
 
         return api_ok(['device_id' => $deviceId, 'status' => $status],
             $status === 'active' ? 'Device enabled' : 'Device disabled');
+    }
+
+    // ------------------------------------------------------------------
+    // Delete (readings, events, settings, alerts and commands cascade)
+    // ------------------------------------------------------------------
+    if ($action === 'delete') {
+        db()->prepare('DELETE FROM devices WHERE device_id = ?')->execute([$deviceId]);
+
+        log_activity('DEVICE_DELETED',
+            sprintf('Device %s (%s) was deleted.', $device['device_name'], $device['esp32_uid']),
+            (int)$user['user_id']);
+
+        return api_ok(['device_id' => $deviceId], 'Device deleted');
     }
 
     // ------------------------------------------------------------------
