@@ -846,8 +846,13 @@ void persistFeedFlags() {}
 void setup() {
   writeRelay(PIN_PUMP, false);
   writeRelay(PIN_MOTOR, false);
-  pinMode(PIN_PUMP, OUTPUT);
-  pinMode(PIN_MOTOR, OUTPUT);
+  /* Active-low relay boards are powered from 5 V but the ESP32 only drives 3.3 V. A plain HIGH
+   * (3.3 V) can leave the board's input transistor/opto partly on, so the relay never
+   * releases. Open-drain makes "off" = pin released to the board's own pull-up (full 5 V). */
+  pinMode(PIN_PUMP,  RELAY_ACTIVE_LOW ? OUTPUT_OPEN_DRAIN : OUTPUT);
+  pinMode(PIN_MOTOR, RELAY_ACTIVE_LOW ? OUTPUT_OPEN_DRAIN : OUTPUT);
+  writeRelay(PIN_PUMP, false);
+  writeRelay(PIN_MOTOR, false);
 
 #if WATER_SENSOR_TYPE == 1
   pinMode(PIN_WATER_VCC, OUTPUT);

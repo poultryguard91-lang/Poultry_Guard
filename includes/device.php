@@ -172,6 +172,22 @@ function queue_command(int $deviceId, string $command, ?array $payload, ?int $us
 }
 
 /**
+ * A user id echoed back by the firmware, or null when it is missing or does not
+ * match a user. The dispensing tables have a foreign key on user_id, so an
+ * unknown id would reject the whole record (HTTP 500) and the device would
+ * retry it forever.
+ */
+function existing_user_id(mixed $value): ?int
+{
+    if (!is_numeric($value) || (int)$value < 1) {
+        return null;
+    }
+    $st = db()->prepare('SELECT user_id FROM users WHERE user_id = ?');
+    $st->execute([(int)$value]);
+    return $st->fetchColumn() !== false ? (int)$value : null;
+}
+
+/**
  * Record a completed (or failed) feeder run reported by the device.
  *
  * The feeder is timed (no load cell), so a run is described by how long the
@@ -187,7 +203,7 @@ function record_feed_dispensing(int $deviceId, array $in): int
     $status  = v_enum($in['status'] ?? 'completed', 'Status', ['pending', 'running', 'completed', 'failed', 'aborted', 'timeout'], 'completed');
     $ms      = v_int($in['duration_ms'] ?? null, 'Duration', 0, 3600000, 0);
     $notes   = v_string($in['notes'] ?? null, 'Notes', 0, 255, '');
-    $userId  = isset($in['user_id']) && is_numeric($in['user_id']) ? (int)$in['user_id'] : null;
+    $userId  = existing_user_id($in['user_id'] ?? null);
 
     $st = db()->prepare(
         'INSERT INTO feed_dispensing
@@ -245,7 +261,7 @@ function record_water_dispensing(int $deviceId, array $in): int
     $status = v_enum($in['status'] ?? 'completed', 'Status', ['pending', 'running', 'completed', 'failed', 'aborted', 'timeout'], 'completed');
     $ms     = v_int($in['duration_ms'] ?? null, 'Duration', 0, 7200000, 0);
     $notes  = v_string($in['notes'] ?? null, 'Notes', 0, 255, '');
-    $userId = isset($in['user_id']) && is_numeric($in['user_id']) ? (int)$in['user_id'] : null;
+    $userId = existing_user_id($in['user_id'] ?? null);
 
     $st = db()->prepare(
         'INSERT INTO water_dispensing
