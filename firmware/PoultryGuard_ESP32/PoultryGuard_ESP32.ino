@@ -78,8 +78,8 @@ const bool RELAY_ACTIVE_LOW = true;   // your 4-relay board turns ON with LOW
 #define WATER_LOW_VALUE   300    // sensor reading that counts as 0 %
 #define WATER_FULL_VALUE  1500   // sensor reading that counts as 100 %
 #define TANK_DEPTH_CM     4.0   // usable water depth = 100 %S (the dashboard's "water capacity")
-#define PUMP_ON_CM        0.5    // at/below this water depth (cm) = LOW -> pump starts
-#define PUMP_ON_PCT       (PUMP_ON_CM * 100.0 / TANK_DEPTH_CM)   // = 2.5 %
+#define PUMP_ON_CM        1.0    // at/below this water depth (cm) = LOW -> pump starts
+#define PUMP_ON_PCT       (PUMP_ON_CM * 100.0 / TANK_DEPTH_CM)   // = 25 % of a 4 cm tank
 #define PUMP_OFF_PCT      70     // at/above this water level % = FULL -> pump stops
 /* Float switch (type 2): pin reading when the water is LOW */
 #define FLOAT_LOW_STATE      LOW
