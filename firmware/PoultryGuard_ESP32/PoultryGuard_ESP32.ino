@@ -70,13 +70,15 @@ const bool RELAY_ACTIVE_LOW = true;   // your 4-relay board turns ON with LOW
                              // Time a real refill and set this a bit above it.
 #define PUMP_REST_SEC   5   // wait this long before the next automatic refill
 #define FEED_SEC        3
-#define MOTOR_MAX_SEC   20
+#define MOTOR_MAX_SEC   12
 
 /* Analog sensor (type 1). Type "status" with the sensor dry, half in water
  * and fully in water to see the values, then set these two.
  * Mount the strip so its bottom = your LOW mark, top = your FULL mark. */
-#define WATER_LOW_VALUE   300    // at/below this = LOW  -> pump starts
-#define WATER_FULL_VALUE  1500   // at/above this = FULL -> pump stops
+#define WATER_LOW_VALUE   300    // sensor reading that counts as 0 %
+#define WATER_FULL_VALUE  1500   // sensor reading that counts as 100 %
+#define PUMP_ON_PCT       10     // at/below this water level % = LOW  -> pump starts
+#define PUMP_OFF_PCT      70     // at/above this water level % = FULL -> pump stops
 /* Float switch (type 2): pin reading when the water is LOW */
 #define FLOAT_LOW_STATE      LOW
 #define FLOAT_EXTRA_FILL_SEC 5    // keep filling this long after the float lifts
@@ -193,9 +195,10 @@ void readWater() {
   for (int i = 0; i < 10; i++) sum += analogRead(PIN_WATER_S);
   digitalWrite(PIN_WATER_VCC, LOW);
   waterValue = sum / 10;
-  if (waterValue <= WATER_LOW_VALUE)       waterLevel = "LOW";
-  else if (waterValue >= WATER_FULL_VALUE) waterLevel = "FULL";
-  else                                     waterLevel = "OK";
+  int pct = constrain(map(waterValue, WATER_LOW_VALUE, WATER_FULL_VALUE, 0, 100), 0, 100);
+  if (pct <= PUMP_ON_PCT)        waterLevel = "LOW";
+  else if (pct >= PUMP_OFF_PCT)  waterLevel = "FULL";
+  else                           waterLevel = "OK";
 #else
   waterValue = digitalRead(PIN_FLOAT);
   if (waterValue == FLOAT_LOW_STATE) { waterLevel = "LOW"; floatOkSince = 0; }
