@@ -27,7 +27,7 @@ window.PG_PAGE = { kind: 'water' };
     <span aria-hidden="true">&#9432;</span>
     <div>
         Commands are queued and picked up by the controller on its next check-in
-        (usually within <?= (int)($DEVICE_SETTINGS['reading_interval'] ?? 30) ?> seconds).
+        (usually within 5 seconds).
         The ESP32 stops the pump itself once the target level is reached,
         or after the
         <strong><?= (int)($DEVICE_SETTINGS['water_max_duration'] ?? 300) ?>&nbsp;second</strong>

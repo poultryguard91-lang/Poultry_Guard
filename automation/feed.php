@@ -28,7 +28,7 @@ window.PG_PAGE = { kind: 'feed' };
     <span aria-hidden="true">&#9432;</span>
     <div>
         Scheduled feeds are set on the <a href="<?= e(url('automation/schedule.php')) ?>">Scheduled Feeding</a> page and run on the controller itself. Commands here are queued and picked up by the controller on its next check-in
-        (usually within <?= (int)($DEVICE_SETTINGS['reading_interval'] ?? 30) ?> seconds).
+        (usually within 5 seconds).
         The feeder is timed: the ESP32 runs the motor for the number of seconds you
         choose and stops it itself, never longer than the
         <strong><?= (int)($DEVICE_SETTINGS['feed_max_duration'] ?? 30) ?>&nbsp;second</strong>
