@@ -77,7 +77,9 @@ const bool RELAY_ACTIVE_LOW = true;   // your 4-relay board turns ON with LOW
  * Mount the strip so its bottom = your LOW mark, top = your FULL mark. */
 #define WATER_LOW_VALUE   300    // sensor reading that counts as 0 %
 #define WATER_FULL_VALUE  1500   // sensor reading that counts as 100 %
-#define PUMP_ON_PCT       10     // at/below this water level % = LOW  -> pump starts
+#define TANK_DEPTH_CM     20.0   // usable water depth = 100 % (the dashboard's "water capacity")
+#define PUMP_ON_CM        0.5    // at/below this water depth (cm) = LOW -> pump starts
+#define PUMP_ON_PCT       (PUMP_ON_CM * 100.0 / TANK_DEPTH_CM)   // = 2.5 %
 #define PUMP_OFF_PCT      70     // at/above this water level % = FULL -> pump stops
 /* Float switch (type 2): pin reading when the water is LOW */
 #define FLOAT_LOW_STATE      LOW
@@ -195,7 +197,7 @@ void readWater() {
   for (int i = 0; i < 10; i++) sum += analogRead(PIN_WATER_S);
   digitalWrite(PIN_WATER_VCC, LOW);
   waterValue = sum / 10;
-  int pct = constrain(map(waterValue, WATER_LOW_VALUE, WATER_FULL_VALUE, 0, 100), 0, 100);
+  float pct = constrain((waterValue - WATER_LOW_VALUE) * 100.0f / (WATER_FULL_VALUE - WATER_LOW_VALUE), 0.0f, 100.0f);
   if (pct <= PUMP_ON_PCT)        waterLevel = "LOW";
   else if (pct >= PUMP_OFF_PCT)  waterLevel = "FULL";
   else                           waterLevel = "OK";
