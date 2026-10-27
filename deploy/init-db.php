@@ -50,6 +50,14 @@ if ($pdo->query("SHOW TABLES LIKE 'users'")->fetch()) {
     if (!$pdo->query("SHOW COLUMNS FROM `system_settings` LIKE 'feed_schedule'")->fetch()) {
         $pdo->exec("ALTER TABLE `system_settings` ADD COLUMN `feed_schedule` TEXT NULL DEFAULT NULL AFTER `auto_feed`");
     }
+    // Timed feeder (replaced the weight-based hopper): databases created from the original
+    // schema still require target_weight on every feed record, which the firmware never
+    // sends, so each record was rejected with HTTP 500. Give the legacy columns defaults.
+    foreach (['target_weight', 'start_weight'] as $legacy) {
+        if ($pdo->query("SHOW COLUMNS FROM `feed_dispensing` LIKE '{$legacy}'")->fetch()) {
+            $pdo->exec("ALTER TABLE `feed_dispensing` MODIFY `{$legacy}` DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+        }
+    }
     echo "[init-db] schema present, climate table and feed schedule ensured\n";
     exit(0);
 }

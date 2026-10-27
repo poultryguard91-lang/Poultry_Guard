@@ -345,6 +345,19 @@ void runCommand(String cmd) {
       Serial.print(slots[i].sec); Serial.println(" s");
     }
     if (slotCount == 0) Serial.println("  (no feeding times set)");
+#if ENABLE_SYNC
+    time_t nowT = time(nullptr);
+    if (nowT < 1700000000) {
+      Serial.println("  Board clock: NOT SET (needs Wi-Fi + internet for NTP) - scheduled feeds are SKIPPED");
+    } else {
+      struct tm tn; localtime_r(&nowT, &tn);
+      char tb[20]; strftime(tb, sizeof(tb), "%Y-%m-%d %H:%M:%S", &tn);
+      Serial.print("  Board clock: "); Serial.println(tb);
+    }
+    Serial.print("  Feeds run only within "); Serial.print(SCHEDULE_GRACE_MIN);
+    Serial.println(" min after each time, once per slot. Last fired minute stamp: ");
+    Serial.println(lastFireStamp);
+#endif
   }
 
   else if (cmd == "test") {
