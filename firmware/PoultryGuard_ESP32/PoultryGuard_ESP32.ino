@@ -6,7 +6,7 @@
  *    Water level sensor : in the chickens' WATER TANK. When the water is
  *                         LOW/EMPTY the pump turns ON and refills the tank,
  *                         then turns OFF when the tank is FULL.
- *
+ 
  *  Board: "ESP32 Dev Module"
  *  Libraries: "DHT sensor library" by Adafruit (+ Adafruit Unified Sensor)
  *             "ArduinoJson" v7 by Benoit Blanchon
@@ -36,6 +36,16 @@
 
 #include <DHT.h>
 #include "config.h"
+
+// HTTP and relay-control timing settings.
+// HTTP_TIMEOUT and COMMAND_POLL_INTERVAL are configured elsewhere (usually config.h).
+#ifndef RELAY_HTTP_TIMEOUT
+#define RELAY_HTTP_TIMEOUT 3000UL
+#endif
+
+#ifndef STOP_POLL_INTERVAL
+#define STOP_POLL_INTERVAL 1000UL
+#endif
 #if ENABLE_SYNC
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -66,7 +76,7 @@
 /* ---------- Settings ---------- */
 const bool RELAY_ACTIVE_LOW = true;   // your 4-relay board turns ON with LOW
 
-#define PUMP_MAX_SEC    20   // safety: one refill never runs longer than this.
+#define PUMP_MAX_SEC    10   // safety: one refill never runs longer than this.
                              // Time a real refill and set this a bit above it.
 #define PUMP_REST_SEC   5   // wait this long before the next automatic refill
 #define FEED_SEC        3
@@ -75,8 +85,8 @@ const bool RELAY_ACTIVE_LOW = true;   // your 4-relay board turns ON with LOW
 /* Analog sensor (type 1). Type "status" with the sensor dry, half in water
  * and fully in water to see the values, then set these two.
  * Mount the strip so its bottom = your LOW mark, top = your FULL mark. */
-#define WATER_LOW_VALUE   300    // sensor reading that counts as 0 %
-#define WATER_FULL_VALUE  1500   // sensor reading that counts as 100 %
+#define WATER_LOW_VALUE   0    // sensor reading that counts as 0 %
+#define WATER_FULL_VALUE  500   // sensor reading that counts as 100 %
 #define TANK_DEPTH_CM     4.0   // usable water depth = 100 %S (the dashboard's "water capacity")
 #define PUMP_ON_CM        1.0    // at/below this water depth (cm) = LOW -> pump starts
 #define PUMP_ON_PCT       (PUMP_ON_CM * 100.0 / TANK_DEPTH_CM)   // = 25 % of a 4 cm tank

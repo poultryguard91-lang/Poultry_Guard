@@ -262,6 +262,9 @@ function get_settings(int $deviceId): array
     if (isset($row['feed_max_duration'])) {
         $row['feed_max_duration'] = min((int)$row['feed_max_duration'], FEED_MAX_SEC_LIMIT);
     }
+    if (isset($row['water_max_duration'])) {
+        $row['water_max_duration'] = min((int)$row['water_max_duration'], WATER_MAX_SEC_LIMIT);
+    }
     return $row;
 }
 

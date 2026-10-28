@@ -94,7 +94,7 @@ api_run(function (array $in): ApiResult {
         $new['water_capacity_liters'] = v_float($in['water_capacity_liters'] ?? null, 'Tank volume', 1, 100000, (float)$current['water_capacity_liters']);
         $new['water_threshold']       = v_float($in['water_threshold']       ?? null, 'Minimum water threshold', 0, 400, (float)$current['water_threshold']);
         $new['water_target']          = v_float($in['water_target']          ?? null, 'Target water level', 0, 400, (float)$current['water_target']);
-        $new['water_max_duration']    = v_int($in['water_max_duration']      ?? null, 'Maximum refill duration', 1, 7200, (int)$current['water_max_duration']);
+        $new['water_max_duration']    = v_int($in['water_max_duration']      ?? null, 'Maximum refill duration', 1, WATER_MAX_SEC_LIMIT, (int)$current['water_max_duration']);
         $new['auto_water']            = to_bool($in['auto_water'] ?? $current['auto_water']);
 
         // --- cross-field rules ---

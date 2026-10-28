@@ -58,6 +58,38 @@ if ($pdo->query("SHOW TABLES LIKE 'users'")->fetch()) {
             $pdo->exec("ALTER TABLE `feed_dispensing` MODIFY `{$legacy}` DECIMAL(10,2) NOT NULL DEFAULT 0.00");
         }
     }
+    // One-time: align the stored automation settings with the firmware constants
+    // (PoultryGuard_ESP32.ino). Recorded in schema_migrations so later deploys never
+    // overwrite values changed on the Settings page.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `schema_migrations` (
+        `name` VARCHAR(100) NOT NULL PRIMARY KEY,
+        `applied_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB");
+    $migration = 'match_firmware_2026_10';
+    $done = $pdo->prepare('SELECT 1 FROM schema_migrations WHERE name = ?');
+    $done->execute([$migration]);
+    if (!$done->fetchColumn()) {
+        $pdo->exec("UPDATE `system_settings` SET
+            feed_max_duration = 12, water_capacity = 4.00, water_threshold = 1.00, water_target = 2.80,
+            water_max_duration = 10, water_low_percent = 40.00, water_critical_percent = 25.00");
+        // Scheduled feeds can't run longer than the 12 s feeder limit.
+        foreach ($pdo->query('SELECT setting_id, feed_schedule FROM system_settings')->fetchAll() as $row) {
+            $slots = json_decode((string)$row['feed_schedule'], true);
+            if (!is_array($slots)) {
+                continue;
+            }
+            foreach ($slots as &$slot) {
+                if (is_array($slot) && isset($slot['seconds'])) {
+                    $slot['seconds'] = min((int)$slot['seconds'], 12);
+                }
+            }
+            unset($slot);
+            $pdo->prepare('UPDATE system_settings SET feed_schedule = ? WHERE setting_id = ?')
+                ->execute([json_encode($slots, JSON_UNESCAPED_SLASHES), $row['setting_id']]);
+        }
+        $pdo->prepare('INSERT INTO schema_migrations (name) VALUES (?)')->execute([$migration]);
+        echo "[init-db] settings aligned with the firmware ({$migration})\n";
+    }
     echo "[init-db] schema present, climate table and feed schedule ensured\n";
     exit(0);
 }

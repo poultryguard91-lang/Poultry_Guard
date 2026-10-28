@@ -30,7 +30,7 @@ window.PG_PAGE = { kind: 'water' };
         (usually within 5 seconds).
         The ESP32 stops the pump itself once the target level is reached,
         or after the
-        <strong><?= (int)($DEVICE_SETTINGS['water_max_duration'] ?? 300) ?>&nbsp;second</strong>
+        <strong><?= (int)($DEVICE_SETTINGS['water_max_duration'] ?? WATER_MAX_SEC_LIMIT) ?>&nbsp;second</strong>
         safety timeout, whichever comes first.
     </div>
 </div>

@@ -51,6 +51,8 @@ define('LOGIN_LOCKOUT_SECONDS', 900);
 define('DEFAULT_OFFLINE_TIMEOUT', 300);
 // The ESP32 firmware never runs the feeder longer than this (MOTOR_MAX_SEC).
 define('FEED_MAX_SEC_LIMIT', 12);
+// ...and the pump never longer than this (PUMP_MAX_SEC).
+define('WATER_MAX_SEC_LIMIT', 10);
 
 /** Roles. */
 define('ROLE_OWNER', 'owner');

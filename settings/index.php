@@ -114,7 +114,7 @@ function setting_field(
                     setting_field('water_target', 'Target water level', 'cm',
                         'The pump stops once the tank reaches this depth.', $CAN_THRESHOLDS, '0.1', '0', '400');
                     setting_field('water_max_duration', 'Maximum pump run time', 'seconds',
-                        'Safety cut-off: the pump never runs longer than this.', $CAN_THRESHOLDS, '1', '1', '7200');
+                        'Safety cut-off: the pump never runs longer than this.', $CAN_THRESHOLDS, '1', '1', (string)WATER_MAX_SEC_LIMIT);
                     ?>
                     <div class="col-md-6 d-flex align-items-end">
                         <div class="form-check form-switch">
